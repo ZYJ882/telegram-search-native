@@ -57,6 +57,12 @@ app/build/outputs/apk/debug/app-debug.apk
 
 更详细的变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
+## 项目来源与致谢
+
+本项目的产品方向参考了 [groupultra/telegram-search](https://github.com/groupultra/telegram-search) 对 Telegram 历史同步、索引与检索场景的探索。[1] 当前仓库是独立编写的 **Kotlin + Jetpack Compose + TDLib** 原生 Android 实现，不调用原项目的网站或服务端，也不包含其网页端代码；Telegram 登录、会话同步和本地 SQLite 索引均在用户设备内完成。
+
+> 原项目链接：[https://github.com/groupultra/telegram-search](https://github.com/groupultra/telegram-search)
+
 ## 隐私与安全
 
 **本仓库不包含、也不应包含**任何真实的 `api_id`、`api_hash`、Telegram 验证码、两步验证密码、TDLib 会话数据库、Android Keystore 文件或个人聊天数据。`.gitignore` 已主动排除这些路径；公开发布前仍应运行自己的密钥扫描。
@@ -76,3 +82,7 @@ docs/releases/          每个版本的中文说明
 gradle/                 Gradle Wrapper
 CHANGELOG.md            版本历史
 ```
+
+## 参考项目
+
+[1] [groupultra/telegram-search](https://github.com/groupultra/telegram-search) — Telegram 历史同步、索引与检索场景的原始参考项目。
