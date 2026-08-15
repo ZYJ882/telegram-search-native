@@ -1,0 +1,39 @@
+# Android / Gradle build output
+.gradle/
+.kotlin/
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Local Android SDK configuration and signing material
+local.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+key.properties
+
+# TDLib local working data and Telegram session cache
+tdlib/
+app/src/main/assets/tdlib/
+*.tdbinlog
+*.tdb
+*.sqlite
+*.sqlite3
+
+# Local environment, IDE files, logs and OS metadata
+.env
+.env.*
+*.log
+.idea/
+*.iml
+.DS_Store
+
+# Do not commit real Telegram developer credentials or exported chat data
+*api_hash*
+*api_id*
+*session*
+*telegram-export*

@@ -1,0 +1,50 @@
+package app.lingogram.tgsearchnative
+
+import android.app.Application
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+enum class Tab(val label:String){SEARCH("搜索"),SYNC("同步"),CONNECT("连接"),SETTINGS("设置")}
+class AppViewModel(app:Application):AndroidViewModel(app){
+    private val secure=SecureSettings(app);private val store=ArchiveStore(app)
+    val gateway=TdLibGateway(app,secure){items->viewModelScope.launch{withContext(Dispatchers.IO){store.insert(items)};refresh();notice="已写入 ${items.size} 条本地索引"}}
+    var tab by mutableStateOf(Tab.SEARCH);var query by mutableStateOf("");var results by mutableStateOf(emptyList<LocalMessage>());var saved by mutableStateOf(emptyList<LocalMessage>());var stats by mutableStateOf(LocalStats(0,0,0));var notice by mutableStateOf<String?>(null);var config by mutableStateOf(secure.apiConfig());var selected by mutableStateOf<LocalMessage?>(null)
+    init{refresh();gateway.start()}
+    fun refresh(){results=store.search(query);saved=store.saved();stats=store.stats()}
+    fun saveConfig(idText:String,hash:String){val id=idText.toIntOrNull();if(id==null||hash.isBlank()){notice="请输入有效 API ID 与 API Hash";return};secure.saveApiConfig(id,hash);config=secure.apiConfig();gateway.restart();notice="参数已加密保存到当前设备"}
+    fun toggle(m:LocalMessage){store.toggle(m.id);refresh();selected=results.firstOrNull{it.id==m.id}?:saved.firstOrNull{it.id==m.id}?:m.copy(saved=!m.saved)}
+    fun demo(){store.addDemo();refresh();notice="已加载本地演示数据"}
+    fun clearIndex(){store.clearIndex();refresh();notice="本地检索索引已清除"}
+}
+class MainActivity:ComponentActivity(){override fun onCreate(s:Bundle?){super.onCreate(s);setContent{App()}}}
+@OptIn(ExperimentalMaterial3Api::class) @Composable fun App(vm:AppViewModel=viewModel()){
+ val snackbar=remember{SnackbarHostState()};LaunchedEffect(vm.notice){vm.notice?.let{snackbar.showSnackbar(it);vm.notice=null}}; MaterialTheme(colorScheme=lightColorScheme(primary=Color(0xFF146DCE),secondary=Color(0xFF2D7D75))){Scaffold(topBar={CenterAlignedTopAppBar(title={Text(if(vm.selected==null)"Telegram Search Native" else "消息详情",fontWeight=FontWeight.SemiBold)},navigationIcon={if(vm.selected!=null)TextButton(onClick={vm.selected=null}){Text("返回")}})},bottomBar={if(vm.selected==null)Nav(vm.tab){vm.tab=it}},snackbarHost={SnackbarHost(snackbar)}){pad->Box(Modifier.padding(pad).fillMaxSize()){if(vm.selected!=null)Detail(vm.selected!!){vm.toggle(it)}else when(vm.tab){Tab.SEARCH->Search(vm);Tab.SYNC->Sync(vm);Tab.CONNECT->Connect(vm);Tab.SETTINGS->Settings(vm)}}}}}
+@Composable fun Nav(selected:Tab,go:(Tab)->Unit)=NavigationBar{Tab.entries.forEach{t->val icon=when(t){Tab.SEARCH->Icons.Default.Search;Tab.SYNC->Icons.Default.Sync;Tab.CONNECT->Icons.Default.Lock;Tab.SETTINGS->Icons.Default.Settings};NavigationBarItem(selected=t==selected,onClick={go(t)},icon={Icon(icon,t.label)},label={Text(t.label)})}}
+@Composable fun Search(vm:AppViewModel){LaunchedEffect(vm.query){vm.refresh()};LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text("手机本地检索",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("仅搜索你主动同步到本机索引的文本消息。",color=MaterialTheme.colorScheme.onSurfaceVariant)};item{OutlinedTextField(vm.query,{vm.query=it},Modifier.fillMaxWidth(),label={Text("关键词")},leadingIcon={Icon(Icons.Default.Search,null)},singleLine=true)};item{Text("${vm.results.size} 条结果",color=MaterialTheme.colorScheme.primary)};if(vm.results.isEmpty())item{Empty("尚无本地消息","先连接 Telegram 并选择会话同步，或载入演示数据。")};items(vm.results,key={it.id}){MessageCard(it,vm.query,{vm.selected=it},{vm.toggle(it)})}}}
+@Composable fun Connect(vm:AppViewModel){var input by remember{mutableStateOf("")};val stage=vm.gateway.stage;Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){Text("设备内 Telegram 登录",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Card{Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){Text(stage.title,style=MaterialTheme.typography.titleLarge);Text(stage.detail,color=MaterialTheme.colorScheme.onSurfaceVariant);when(stage){AuthStage.NeedConfig->{Button(onClick={vm.tab=Tab.SETTINGS},modifier=Modifier.fillMaxWidth()){Text("去设置 API 参数")}};AuthStage.NeedPhone->{OutlinedTextField(input,{input=it},Modifier.fillMaxWidth(),label={Text("手机号（含国家码）")},singleLine=true);Button(onClick={vm.gateway.sendPhone(input)},modifier=Modifier.fillMaxWidth()){Text("发送登录请求")}};AuthStage.NeedCode->{OutlinedTextField(input,{input=it},Modifier.fillMaxWidth(),label={Text("Telegram 验证码")},singleLine=true);Button(onClick={vm.gateway.sendCode(input)},modifier=Modifier.fillMaxWidth()){Text("验证")}};AuthStage.NeedPassword->{OutlinedTextField(input,{input=it},Modifier.fillMaxWidth(),label={Text("两步验证密码")},singleLine=true);Button(onClick={vm.gateway.sendPassword(input)},modifier=Modifier.fillMaxWidth()){Text("继续")}};is AuthStage.Failed->{OutlinedButton(onClick={vm.gateway.restart()},modifier=Modifier.fillMaxWidth()){Text("重新初始化")}};else->Unit}}};Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)){Text("手机号、验证码和两步验证密码不会写入本地检索库或日志。Telegram 会话数据库、API 参数及数据库密钥只保存于当前手机。",Modifier.padding(16.dp))}}}
+@Composable fun Sync(vm:AppViewModel){LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{Text("选择会话并同步",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("原型每个选中会话同步最近 100 条文本消息，不下载媒体。",color=MaterialTheme.colorScheme.onSurfaceVariant)};item{Button(onClick=vm.gateway::syncSelected,enabled=vm.gateway.stage==AuthStage.Ready,modifier=Modifier.fillMaxWidth()){Icon(Icons.Default.CloudDownload,null);Spacer(Modifier.width(8.dp));Text("同步选中会话")}};item{Text(vm.gateway.syncNote,color=MaterialTheme.colorScheme.primary)};if(vm.gateway.chats.isEmpty())item{Empty("尚无会话","连接成功后，TDLib 会加载聊天列表。")};items(vm.gateway.chats,key={it.id}){chat->Row(Modifier.fillMaxWidth().clickable{vm.gateway.toggleChat(chat.id)}.padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically){Checkbox(chat.selected,{vm.gateway.toggleChat(chat.id)});Spacer(Modifier.width(10.dp));Text(chat.title,Modifier.weight(1f))}}}}
+@Composable fun Settings(vm:AppViewModel){var id by remember(vm.config){mutableStateOf(vm.config?.apiId?.toString()?:"")};var hash by remember(vm.config){mutableStateOf(vm.config?.apiHash?:"")};Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("本地安全设置",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("请使用你自己在 my.telegram.org/apps 创建的参数。它们会通过 Android Keystore 支撑的加密偏好保存在此设备。",color=MaterialTheme.colorScheme.onSurfaceVariant);OutlinedTextField(id,{id=it},Modifier.fillMaxWidth(),label={Text("Telegram API ID")},singleLine=true);OutlinedTextField(hash,{hash=it},Modifier.fillMaxWidth(),label={Text("Telegram API Hash")},singleLine=true);Button(onClick={vm.saveConfig(id,hash)},modifier=Modifier.fillMaxWidth()){Text("保存并初始化 TDLib")};ElevatedCard{Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column{Text("本地索引");Text("${vm.stats.messages} 条消息 · ${vm.stats.chats} 个会话",color=MaterialTheme.colorScheme.onSurfaceVariant)};TextButton(onClick=vm::clearIndex){Text("清除")}}};OutlinedButton(onClick=vm::demo,modifier=Modifier.fillMaxWidth()){Text("载入演示数据")}}}
+@Composable fun Detail(m:LocalMessage,toggle:(LocalMessage)->Unit){Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text(m.chatName,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("${m.sender} · ${m.date}",color=MaterialTheme.colorScheme.onSurfaceVariant);ElevatedCard{Column(Modifier.padding(18.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("已同步消息",color=MaterialTheme.colorScheme.primary);IconButton(onClick={toggle(m)}){Icon(if(m.saved)Icons.Default.Bookmark else Icons.Default.BookmarkBorder,null)}};Text(m.text,style=MaterialTheme.typography.bodyLarge)}}}}
+@Composable fun MessageCard(m:LocalMessage,q:String,open:()->Unit,toggle:()->Unit)=Card(Modifier.fillMaxWidth().clickable{open()}){Column(Modifier.padding(15.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text(m.chatName,Modifier.weight(1f),color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.SemiBold);IconButton(onClick=toggle){Icon(if(m.saved)Icons.Default.Bookmark else Icons.Default.BookmarkBorder,null)}};Text("${m.sender} · ${m.date.replace("T"," ").removeSuffix("Z")}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(5.dp));Text(m.text,maxLines=4,overflow=TextOverflow.Ellipsis)}}
+@Composable fun Empty(title:String,detail:String)=Column(Modifier.fillMaxWidth().padding(vertical=48.dp),horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Default.Info,null,Modifier.size(42.dp),tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(10.dp));Text(title,style=MaterialTheme.typography.titleMedium);Text(detail,color=MaterialTheme.colorScheme.onSurfaceVariant)}
