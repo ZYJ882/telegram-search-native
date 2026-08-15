@@ -47,13 +47,16 @@ app/build/outputs/apk/debug/app-debug.apk
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
 | v0.7.0 | 持续历史同步、重复页不中止、页数诊断和手动停止。 | [Release v0.7.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.7.0) |
-| v0.6.0 | 长消息详情滚动、稳定历史游标与重复页保护。 | [Release v0.6.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/historical-apk-archive) |
-| v0.5.1 | 刷新历史消息权限、收藏/跳转重试、自由选择和复制全文。 | [Release v0.5.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/historical-apk-archive) |
-| v0.5.0 | 收藏夹转发、官方 Telegram 跳转、搜索位置恢复与返回导航。 | [Release v0.5.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/historical-apk-archive) |
-| v0.4.0 | 会话名称搜索、已选会话置顶和勾选后回到列表顶部。 | [Release v0.4.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/historical-apk-archive) |
-| v0.3.2 | 会话标题补取、媒体配文索引和新启动图标。 | [Release v0.3.2](https://github.com/ZYJ882/telegram-search-native/releases/tag/historical-apk-archive) |
-| v0.3.0 | 所选会话的分页全量历史文本同步。 | [Release v0.3.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/historical-apk-archive) |
-| v0.2.1 | 验证码错误恢复和重新登录引导。 | [Release v0.2.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/historical-apk-archive) |
+| v0.6.0 | 长消息详情滚动、稳定历史游标与重复页保护。 | [Release v0.6.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.6.0-scroll-pagination-fix) |
+| v0.5.1 | 消息权限刷新、文本选择和全文复制。 | [Release v0.5.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.5.1-message-refresh-copy) |
+| v0.5.0 | Saved Messages 转发、Telegram 跳转和导航体验。 | [Release v0.5.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.5.0-message-actions) |
+| v0.4.0 | 会话名称搜索与已选会话置顶。 | [Release v0.4.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.4.0-chat-picker) |
+| v0.3.2 | 同步稳定性、媒体配文索引和启动图标。 | [Release v0.3.2](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.3.2-sync-icon) |
+| v0.3.1 | 启动图标设计迭代。 | [Release v0.3.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.3.1-history-icon) |
+| v0.3.0 | 分页全量历史同步。 | [Release v0.3.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.3.0-full-history) |
+| v0.2.1 | 验证码错误恢复和认证状态提示。 | [Release v0.2.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.2.1-code-retry) |
+| v0.2.0 | TDLib 登录、会话同步与本地搜索。 | [Release v0.2.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.2.0-tdlib) |
+| v0.1.0 | JSON/JSONL 本地导入与离线检索。 | [Release v0.1.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.1.0-local-import) |
 
 更详细的变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
