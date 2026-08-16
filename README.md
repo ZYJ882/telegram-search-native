@@ -9,7 +9,9 @@
 | 本地 Telegram 登录 | 通过 TDLib 完成手机号、验证码、两步验证和其他设备确认状态处理。 |
 | 选择性全量同步 | 按会话选择、名称搜索、已选置顶；逐页请求可访问的历史消息，可手动停止。 |
 | 离线本地检索 | 搜索普通文本及图片、视频、文件、音频和语音的文字说明。 |
-| 消息详情 | 长文本滚动、长按选择文字、一键复制全文、本地收藏标记。 |
+| 消息详情 | 长文本滚动、长按选择文字、一键复制全文、单条本地删除。 |
+| 本机收藏夹 | 搜索结果和消息详情可书签收藏；“收藏”页集中查看和移除收藏，不写入 Telegram 账号。 |
+| 本地索引管理 | 设置页可清除本机消息、搜索索引和本机收藏；不影响 Telegram 中的原始消息。 |
 | Telegram 操作 | 尝试转发到 Saved Messages，并在 Telegram 提供外链时跳转官方客户端。 |
 | 本地隐私 | 不含服务器、云同步或分析 SDK；API 配置通过 Android Keystore 支撑的加密偏好保存。 |
 
@@ -46,6 +48,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
+| v0.8.0 | 本机收藏夹、单条本地删除与本地数据清除。 | [Release v0.8.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.8.0-local-library) |
 | v0.7.0 | 持续历史同步、重复页不中止、页数诊断和手动停止。 | [Release v0.7.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.7.0) |
 | v0.6.0 | 长消息详情滚动、稳定历史游标与重复页保护。 | [Release v0.6.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.6.0-scroll-pagination-fix) |
 | v0.5.1 | 消息权限刷新、文本选择和全文复制。 | [Release v0.5.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.5.1-message-refresh-copy) |

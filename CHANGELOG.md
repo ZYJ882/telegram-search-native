@@ -2,10 +2,11 @@
 
 本文件记录 Telegram Search Native 的版本演进。所有 APK 为调试签名构建，并在 GitHub Releases 中提供对应的 SHA-256 校验文件。
 
-> 仓库根目录保留当前可构建的 v0.7.0 源码；`archive/` 包含 v0.1.0 与 v0.2.0 的源码快照。未单独保留源码快照的历史版本以 APK、校验文件和版本说明进行归档。
+> 仓库根目录保留当前可构建的 v0.8.0 源码；`archive/` 包含 v0.1.0 与 v0.2.0 的源码快照。未单独保留源码快照的历史版本以 APK、校验文件和版本说明进行归档。
 
 | 版本 | APK | 主要更新 |
 |---|---|---|
+| v0.8.0-local-library | 有 | 本机收藏夹、单条本地删除与本地数据清除。 |
 | v0.1.0-local-import | 有 | JSON/JSONL 本地导入与离线检索。 |
 | v0.2.0-tdlib | 有 | TDLib 登录、会话同步与本地搜索。 |
 | v0.2.1-code-retry | 有 | 验证码错误恢复与认证状态提示。 |
@@ -17,6 +18,10 @@
 | v0.5.1-message-refresh-copy | 有 | 消息权限刷新、文本选择与全文复制。 |
 | v0.6.0-scroll-pagination-fix | 有 | 长消息滚动与历史分页游标优化。 |
 | v0.7.0-continuous-sync | 有 | 持续历史同步与分页进度显示。 |
+
+## v0.8.0-local-library
+
+新增独立的本机收藏夹入口。收藏消息保存在当前设备的 SQLite 索引中，可从搜索结果或消息详情加入、查看和移除，不与 Telegram Saved Messages 同步。消息详情支持单条本地删除；设置页支持确认后清除全部本机消息、搜索索引和本机收藏，Telegram 账号中的原始消息不受影响。
 
 ## v0.7.0-continuous-sync
 

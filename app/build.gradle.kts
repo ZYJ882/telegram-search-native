@@ -11,8 +11,8 @@ android {
         applicationId = "app.lingogram.tgsearchnative"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.7.0-continuous-sync"
+        versionCode = 12
+        versionName = "0.8.0-local-library"
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
