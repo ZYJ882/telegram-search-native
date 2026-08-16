@@ -242,14 +242,14 @@ fun Search(vm: AppViewModel) {
     ) {
         item {
             Text("手机本地检索", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("仅搜索主动同步到手机索引的文本消息。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("多个关键词可用空格、逗号、顿号、分号、竖线或斜杠分隔；结果须同时包含全部关键词。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
             OutlinedTextField(
                 value = vm.query,
                 onValueChange = { vm.query = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("关键词") },
+                label = { Text("关键词（空格或逗号分隔）") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 singleLine = true
             )
