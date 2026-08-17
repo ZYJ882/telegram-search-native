@@ -1,0 +1,145 @@
+name: Automatic Android Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**'
+      - '!README.md'
+      - '!docs/**'
+      - '!versions/**'
+      - '!RELEASE_NOTES.md'
+      - '!.github/workflows/**'
+      - '!incoming/.gitkeep'
+  workflow_dispatch:
+    inputs:
+      source_zip:
+        description: 'Optional source archive under incoming/; empty means current source'
+        required: false
+        type: string
+      version_tag:
+        description: 'Optional release tag, for example v1.0.1'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP_NAME: 'Telegram Search Native'
+  VERSION_PREFIX: '0.8'
+
+jobs:
+  build:
+    name: Build Android package
+    runs-on: ubuntu-24.04
+    outputs:
+      mode: ${{ steps.input.outputs.mode }}
+      apk: ${{ steps.build.outputs.apk }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve input
+        id: input
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.source_zip }}" ]; then
+            archive="${{ inputs.source_zip }}"
+          elif [ "${{ github.event_name }}" = "push" ] && git show --pretty="" --name-only "$GITHUB_SHA" | grep -qE '^incoming/.*\.apk$'; then
+            echo "mode=apk" >> "$GITHUB_OUTPUT"
+            echo "apk=$(git show --pretty="" --name-only "$GITHUB_SHA" | grep -E '^incoming/.*\.apk$' | tail -n 1)" >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [ "${{ github.event_name }}" = "push" ] && git show --pretty="" --name-only "$GITHUB_SHA" | grep -qE '^incoming/.*\.zip$'; then
+            archive="$(git show --pretty="" --name-only "$GITHUB_SHA" | grep -E '^incoming/.*\.zip$' | tail -n 1)"
+          else
+            archive=""
+          fi
+          if [ -n "$archive" ]; then
+            test -f "$archive"
+            mkdir -p "$RUNNER_TEMP/source"
+            unzip -q "$archive" -d "$RUNNER_TEMP/source"
+            project_dir="$(find "$RUNNER_TEMP/source" -maxdepth 5 -name settings.gradle -o -name settings.gradle.kts | head -n 1 | xargs -r dirname)"
+            test -n "$project_dir"
+            echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
+          else
+            echo "project_dir=$GITHUB_WORKSPACE" >> "$GITHUB_OUTPUT"
+          fi
+          echo "mode=build" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        if: steps.input.outputs.mode == 'build'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        if: steps.input.outputs.mode == 'build'
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        if: steps.input.outputs.mode == 'build'
+        id: build
+        working-directory: ${{ steps.input.outputs.project_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          version_code=$((10000 + GITHUB_RUN_NUMBER))
+          version_name="${VERSION_PREFIX}.${GITHUB_RUN_NUMBER}-auto"
+          gradle_file="$(find app -maxdepth 1 \( -name build.gradle -o -name build.gradle.kts \) -type f | head -n 1)"
+          test -n "$gradle_file"
+          sed -i -E "s/versionCode[[:space:]]*=?[[:space:]]*[0-9]+/versionCode = ${version_code}/" "$gradle_file"
+          sed -i -E "s/versionName[[:space:]]*=?[[:space:]]*['\"][^'\"]+['\"]/versionName = \"${version_name}\"/" "$gradle_file"
+          ./gradlew :app:assembleDebug --no-daemon
+          apk="$(find app/build/outputs/apk/debug -name '*.apk' -type f | head -n 1)"
+          test -n "$apk"
+          mkdir -p "$RUNNER_TEMP/release"
+          out="$RUNNER_TEMP/release/${APP_NAME}-${GITHUB_RUN_NUMBER}.apk"
+          cp "$apk" "$out"
+          echo "apk=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Select uploaded APK
+        if: steps.input.outputs.mode == 'apk'
+        id: build_apk
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          out="$RUNNER_TEMP/release/${APP_NAME}-${GITHUB_RUN_NUMBER}.apk"
+          cp "${{ steps.input.outputs.apk }}" "$out"
+          echo "apk=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.version_tag }}"
+          if [ -z "$tag" ]; then tag="auto-v${VERSION_PREFIX}.${GITHUB_RUN_NUMBER}"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Upload PR artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ steps.version.outputs.tag }}-pr
+          path: ${{ steps.build.outputs.apk || steps.build_apk.outputs.apk }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: '${{ env.APP_NAME }} ${{ steps.version.outputs.tag }}'
+          body_path: RELEASE_NOTES.md
+          files: ${{ steps.build.outputs.apk || steps.build_apk.outputs.apk }}
+          fail_on_unmatched_files: true
+          prerelease: false
+          make_latest: true
