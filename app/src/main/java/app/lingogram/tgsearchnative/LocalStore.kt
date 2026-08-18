@@ -1,5 +1,6 @@
 package app.lingogram.tgsearchnative
 
+import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
@@ -36,6 +37,17 @@ class ArchiveStore(context: Context) : SQLiteOpenHelper(context, "tg_native_inde
     fun stats():LocalStats=readableDatabase.rawQuery("SELECT count(*),count(DISTINCT chat_id),sum(saved) FROM messages",null).use{it.moveToFirst();LocalStats(it.getInt(0),it.getInt(1),if(it.isNull(2))0 else it.getInt(2))}
     fun indexedChats(): List<IndexedChat> = readableDatabase.rawQuery("SELECT chat_id, chat_name, count(*), sum(saved) FROM messages GROUP BY chat_id, chat_name ORDER BY chat_name COLLATE NOCASE", null).use { cursor ->
         buildList { while (cursor.moveToNext()) add(IndexedChat(cursor.getLong(0), cursor.getString(1), cursor.getInt(2), if (cursor.isNull(3)) 0 else cursor.getInt(3))) }
+    }
+    private fun selectedIdPlaceholders(ids: Collection<Long>): String = ids.joinToString(",") { "?" }
+    private fun selectedIdArgs(ids: Collection<Long>): Array<String> = ids.map { it.toString() }.toTypedArray()
+    fun setSaved(ids: Collection<Long>, saved: Boolean): Int {
+        if (ids.isEmpty()) return 0
+        val values = ContentValues().apply { put("saved", if (saved) 1 else 0) }
+        return writableDatabase.update("messages", values, "id IN (${selectedIdPlaceholders(ids)})", selectedIdArgs(ids))
+    }
+    fun deleteMessages(ids: Collection<Long>): Int {
+        if (ids.isEmpty()) return 0
+        return writableDatabase.delete("messages", "id IN (${selectedIdPlaceholders(ids)})", selectedIdArgs(ids))
     }
     fun deleteMessage(id: Long) { writableDatabase.delete("messages", "id=?", arrayOf(id.toString())) }
     fun deleteChatIndex(chatId: Long): Int = writableDatabase.delete("messages", "chat_id=?", arrayOf(chatId.toString()))

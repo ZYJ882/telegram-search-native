@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -139,6 +141,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         notice = "已从本机索引删除该消息"
     }
 
+    fun setSaved(ids: Collection<Long>, saved: Boolean) {
+        val changed = store.setSaved(ids, saved)
+        refresh()
+        notice = if (saved) "已将 $changed 条消息加入本机收藏" else "已将 $changed 条消息移出本机收藏"
+    }
+
+    fun deleteLocalMessages(ids: Collection<Long>) {
+        val deleted = store.deleteMessages(ids)
+        refresh()
+        if (selected?.id in ids) closeDetail()
+        notice = "已从本机索引删除 $deleted 条消息"
+    }
+
     fun demo() {
         store.addDemo()
         refresh()
@@ -260,8 +275,21 @@ private fun searchIndexKey(chatName: String): String {
 
 @Composable
 fun Search(vm: AppViewModel) {
-    LaunchedEffect(vm.query) { vm.refresh() }
     val listState = rememberLazyListState(vm.searchListIndex, vm.searchListOffset)
+    var selectionMode by rememberSaveable { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var confirmBulkDelete by rememberSaveable { mutableStateOf(false) }
+    val allResultIds = remember(vm.results) { vm.results.map { it.id }.toSet() }
+
+    LaunchedEffect(vm.query) {
+        vm.refresh()
+        selectionMode = false
+        selectedIds = emptySet()
+    }
+    BackHandler(enabled = selectionMode) {
+        selectionMode = false
+        selectedIds = emptySet()
+    }
     val sections = remember(vm.results) {
         val messagesByKey = vm.results.groupBy { searchIndexKey(it.chatName) }
         searchIndexKeys.mapNotNull { key ->
@@ -326,21 +354,30 @@ fun Search(vm: AppViewModel) {
                 }
                 items(section.messages, key = { it.id }) { message ->
                     MessageCard(
-                        message,
-                        {
+                        message = message,
+                        open = {
                             vm.open(
                                 message,
                                 listState.firstVisibleItemIndex,
                                 listState.firstVisibleItemScrollOffset
                             )
                         },
-                        { vm.toggle(message) }
+                        toggle = { vm.toggle(message) },
+                        selectionMode = selectionMode,
+                        selected = message.id in selectedIds,
+                        onToggleSelection = {
+                            selectedIds = if (message.id in selectedIds) selectedIds - message.id else selectedIds + message.id
+                        },
+                        onLongPress = {
+                            selectionMode = true
+                            selectedIds = selectedIds + message.id
+                        }
                     )
                 }
             }
         }
 
-        if (sections.isNotEmpty()) {
+        if (sections.isNotEmpty() && !selectionMode) {
             SearchQuickSlider(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -351,6 +388,70 @@ fun Search(vm: AppViewModel) {
                 onSeekTo = { requestedListIndex = it }
             )
         }
+
+        if (selectionMode) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shape = RoundedCornerShape(18.dp),
+                shadowElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("已选 ${selectedIds.size}", Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                    TextButton(
+                        onClick = {
+                            selectedIds = if (selectedIds.containsAll(allResultIds) && allResultIds.isNotEmpty()) emptySet() else allResultIds
+                        }
+                    ) { Text(if (selectedIds.containsAll(allResultIds) && allResultIds.isNotEmpty()) "取消全选" else "全选") }
+                    IconButton(
+                        enabled = selectedIds.isNotEmpty(),
+                        onClick = {
+                            vm.setSaved(selectedIds, true)
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }
+                    ) { Icon(Icons.Default.Bookmark, "加入本机收藏") }
+                    IconButton(
+                        enabled = selectedIds.isNotEmpty(),
+                        onClick = { confirmBulkDelete = true }
+                    ) { Icon(Icons.Default.Delete, "删除本机索引") }
+                    IconButton(onClick = {
+                        selectionMode = false
+                        selectedIds = emptySet()
+                    }) { Icon(Icons.Default.Close, "退出多选") }
+                }
+            }
+        }
+    }
+
+    if (confirmBulkDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmBulkDelete = false },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("删除已选索引？") },
+            text = { Text("这会从当前设备的本机索引中删除已选 ${selectedIds.size} 条消息；Telegram 账号中的原始消息不会受到影响。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.deleteLocalMessages(selectedIds)
+                        confirmBulkDelete = false
+                        selectionMode = false
+                        selectedIds = emptySet()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("确认删除") }
+            },
+            dismissButton = { TextButton(onClick = { confirmBulkDelete = false }) { Text("取消") } }
+        )
     }
 }
 
@@ -881,19 +982,55 @@ fun Detail(message: LocalMessage, vm: AppViewModel) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MessageCard(message: LocalMessage, open: () -> Unit, toggle: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable { open() }) {
+fun MessageCard(
+    message: LocalMessage,
+    open: () -> Unit,
+    toggle: () -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
+    onLongPress: () -> Unit = {}
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { if (selectionMode) onToggleSelection() else open() },
+                onLongClick = onLongPress
+            ),
+        colors = if (selected) {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        } else {
+            CardDefaults.cardColors()
+        }
+    ) {
         Column(Modifier.padding(15.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (selectionMode) {
+                    Checkbox(
+                        checked = selected,
+                        onCheckedChange = { onToggleSelection() }
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
                 Text(
                     message.chatName,
                     Modifier.weight(1f),
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
                 )
-                IconButton(onClick = toggle) {
-                    Icon(if (message.saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null)
+                if (selectionMode) {
+                    Icon(
+                        if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        null,
+                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    IconButton(onClick = toggle) {
+                        Icon(if (message.saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null)
+                    }
                 }
             }
             Text(
