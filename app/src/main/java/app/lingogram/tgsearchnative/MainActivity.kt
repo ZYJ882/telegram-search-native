@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -25,7 +26,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +43,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 enum class Tab(val label: String) {
     SEARCH("搜索"),
@@ -263,30 +267,13 @@ fun Search(vm: AppViewModel) {
             }
         }
     }
-    val sectionStartIndices = remember(sections) {
-        buildMap {
-            var index = 3
-            sections.forEach { section ->
-                put(section.key, index)
-                index += 1 + section.messages.size
-            }
-        }
-    }
-    val activeIndexKey by remember(listState, sectionStartIndices, sections) {
-        derivedStateOf {
-            sectionStartIndices.entries
-                .filter { it.value <= listState.firstVisibleItemIndex }
-                .maxByOrNull { it.value }
-                ?.key
-                ?: sections.firstOrNull()?.key
-        }
-    }
-    var requestedIndexKey by remember { mutableStateOf<String?>(null) }
+    val messageItemStartIndex = 3
+    val totalListItems = vm.results.size + sections.size
+    val lastSearchListIndex = messageItemStartIndex + totalListItems - 1
+    var requestedListIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(requestedIndexKey, sectionStartIndices) {
-        requestedIndexKey?.let { key ->
-            sectionStartIndices[key]?.let { listState.scrollToItem(it) }
-        }
+    LaunchedEffect(requestedListIndex) {
+        requestedListIndex?.let { listState.scrollToItem(it) }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -313,7 +300,7 @@ fun Search(vm: AppViewModel) {
                 )
             }
             item {
-                Text("${vm.results.size} 条结果 · ${vm.stats.saved} 条本机收藏 · 按会话名称 #–Z 分组", color = MaterialTheme.colorScheme.primary)
+                Text("${vm.results.size} 条结果 · ${vm.stats.saved} 条本机收藏 · 可通过右侧滑块快速定位", color = MaterialTheme.colorScheme.primary)
             }
             if (vm.results.isEmpty()) {
                 item { Empty("尚无本地消息", "先连接 Telegram 并选择会话同步，或载入演示数据。") }
@@ -345,55 +332,62 @@ fun Search(vm: AppViewModel) {
         }
 
         if (sections.isNotEmpty()) {
-            SearchIndexRail(
+            SearchQuickSlider(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 2.dp),
-                availableKeys = sectionStartIndices.keys,
-                activeKey = activeIndexKey,
-                onSelect = { requestedIndexKey = it }
+                    .padding(end = 2.dp, top = 24.dp, bottom = 24.dp),
+                listState = listState,
+                firstSearchItemIndex = messageItemStartIndex,
+                lastSearchItemIndex = lastSearchListIndex,
+                onSeekTo = { requestedListIndex = it }
             )
         }
     }
 }
 
 @Composable
-private fun SearchIndexRail(
+private fun SearchQuickSlider(
     modifier: Modifier = Modifier,
-    availableKeys: Set<String>,
-    activeKey: String?,
-    onSelect: (String) -> Unit
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    firstSearchItemIndex: Int,
+    lastSearchItemIndex: Int,
+    onSeekTo: (Int) -> Unit
 ) {
-    var railHeightPx by remember { mutableIntStateOf(0) }
-    var lastTouchedKey by remember { mutableStateOf<String?>(null) }
-    var isDragging by remember { mutableStateOf(false) }
-    val availableIndices = remember(availableKeys) {
-        searchIndexKeys.indices.filter { searchIndexKeys[it] in availableKeys }
+    var sliderHeightPx by remember { mutableIntStateOf(0) }
+    var touchFraction by remember { mutableFloatStateOf(0f) }
+    var isTouching by remember { mutableStateOf(false) }
+    var lastTargetIndex by remember { mutableIntStateOf(-1) }
+    val visibleFraction by remember(listState, firstSearchItemIndex, lastSearchItemIndex) {
+        derivedStateOf {
+            val itemRange = (lastSearchItemIndex - firstSearchItemIndex).coerceAtLeast(1)
+            ((listState.firstVisibleItemIndex - firstSearchItemIndex).coerceAtLeast(0).toFloat() /
+                itemRange.toFloat()).coerceIn(0f, 1f)
+        }
     }
+    val displayFraction = if (isTouching) touchFraction else visibleFraction
+    val displayPercent = (displayFraction * 100).roundToInt()
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
+    val knobColor = MaterialTheme.colorScheme.primary
+    val knobCenterColor = MaterialTheme.colorScheme.surface
 
-    fun nearestAvailableKey(y: Float): String? {
-        if (railHeightPx <= 0 || availableIndices.isEmpty()) return null
-        val rawIndex = (y / railHeightPx * searchIndexKeys.size)
-            .toInt()
-            .coerceIn(0, searchIndexKeys.lastIndex)
-        return availableIndices.minByOrNull { abs(it - rawIndex) }?.let { searchIndexKeys[it] }
-    }
-
-    fun selectAt(y: Float) {
-        nearestAvailableKey(y)?.let { key ->
-            if (key != lastTouchedKey) {
-                lastTouchedKey = key
-                onSelect(key)
-            }
+    fun updateFromTouch(y: Float) {
+        if (sliderHeightPx <= 0) return
+        val fraction = (y / sliderHeightPx.toFloat()).coerceIn(0f, 1f)
+        touchFraction = fraction
+        val itemRange = (lastSearchItemIndex - firstSearchItemIndex).coerceAtLeast(1)
+        val target = firstSearchItemIndex + (fraction * itemRange).roundToInt()
+        if (target != lastTargetIndex) {
+            lastTargetIndex = target
+            onSeekTo(target)
         }
     }
 
     Box(
         modifier = modifier
-            .width(72.dp)
-            .height(370.dp)
+            .width(64.dp)
+            .height(330.dp)
     ) {
-        if (isDragging && lastTouchedKey != null) {
+        if (isTouching) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
@@ -404,49 +398,55 @@ private fun SearchIndexRail(
                 shadowElevation = 4.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(lastTouchedKey!!, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("$displayPercent%", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        Column(
+        Canvas(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .width(22.dp)
+                .width(48.dp)
                 .fillMaxHeight()
-                .onSizeChanged { railHeightPx = it.height }
-                .pointerInput(availableKeys, railHeightPx) {
+                .onSizeChanged { sliderHeightPx = it.height }
+                .pointerInput(sliderHeightPx, lastSearchItemIndex) {
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             val change = event.changes.firstOrNull() ?: continue
                             if (change.pressed) {
-                                isDragging = true
-                                selectAt(change.position.y)
+                                isTouching = true
+                                updateFromTouch(change.position.y)
                                 change.consume()
                             } else {
-                                isDragging = false
-                                lastTouchedKey = null
+                                isTouching = false
+                                lastTargetIndex = -1
                             }
                         }
                     }
-                },
-            verticalArrangement = Arrangement.SpaceEvenly,
-            horizontalAlignment = Alignment.CenterHorizontally
+                }
         ) {
-            searchIndexKeys.forEach { key ->
-                val available = key in availableKeys
-                Text(
-                    text = key,
-                    fontSize = 8.sp,
-                    fontWeight = if (key == activeKey) FontWeight.Bold else FontWeight.Medium,
-                    color = when {
-                        key == activeKey -> MaterialTheme.colorScheme.primary
-                        available -> MaterialTheme.colorScheme.onSurfaceVariant
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
-                    }
-                )
-            }
+            val trackX = size.width * 0.72f
+            val top = 12.dp.toPx()
+            val bottom = size.height - 12.dp.toPx()
+            val knobY = top + (bottom - top) * displayFraction
+            drawLine(
+                color = trackColor,
+                start = Offset(trackX, top),
+                end = Offset(trackX, bottom),
+                strokeWidth = 4.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawCircle(
+                color = knobColor,
+                radius = if (isTouching) 12.dp.toPx() else 9.dp.toPx(),
+                center = Offset(trackX, knobY)
+            )
+            drawCircle(
+                color = knobCenterColor,
+                radius = 3.dp.toPx(),
+                center = Offset(trackX, knobY)
+            )
         }
     }
 }
