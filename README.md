@@ -48,6 +48,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
+| v1.0.1 | 覆盖层连续触摸追踪，修复右侧字母区滑动。 | [Release v1.0.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.0.1-pointer-overlay) |
 | v1.0.0 | 紧凑抽屉式字母索引、长按滑动浮层和搜索列表滚动优化。 | [Release v1.0.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.0.0-drawer-index) |
 | v0.9.1 | 修复右侧字母索引条上下拖动跳转。 | [Release v0.9.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.1-index-drag-fix) |
 | v0.9.0 | 搜索结果右侧 #–Z 索引、会话名称分组和上下拖动快速定位。 | [Release v0.9.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.0-search-index-rail) |

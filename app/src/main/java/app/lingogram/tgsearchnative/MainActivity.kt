@@ -9,7 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -416,19 +416,20 @@ private fun SearchIndexRail(
                 .fillMaxHeight()
                 .onSizeChanged { railHeightPx = it.height }
                 .pointerInput(availableKeys, railHeightPx) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { offset ->
-                            isDragging = true
-                            lastTouchedKey = null
-                            selectAt(offset.y)
-                        },
-                        onDragEnd = { isDragging = false },
-                        onDragCancel = { isDragging = false },
-                        onDrag = { change, _ ->
-                            selectAt(change.position.y)
-                            change.consume()
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull() ?: continue
+                            if (change.pressed) {
+                                isDragging = true
+                                selectAt(change.position.y)
+                                change.consume()
+                            } else {
+                                isDragging = false
+                                lastTouchedKey = null
+                            }
                         }
-                    )
+                    }
                 },
             verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally
@@ -443,8 +444,7 @@ private fun SearchIndexRail(
                         key == activeKey -> MaterialTheme.colorScheme.primary
                         available -> MaterialTheme.colorScheme.onSurfaceVariant
                         else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
-                    },
-                    modifier = Modifier.clickable(enabled = available) { onSelect(key) }
+                    }
                 )
             }
         }

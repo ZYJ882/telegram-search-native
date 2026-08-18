@@ -11,8 +11,8 @@ android {
         applicationId = "app.lingogram.tgsearchnative"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.0.0-drawer-index"
+        versionCode = 17
+        versionName = "1.0.1-pointer-overlay"
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
