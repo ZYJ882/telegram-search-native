@@ -7,7 +7,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,15 +26,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
+import kotlin.math.abs
 
 enum class Tab(val label: String) {
     SEARCH("搜索"),
@@ -229,49 +237,167 @@ fun Nav(selected: Tab, go: (Tab) -> Unit) {
     }
 }
 
+private data class SearchSection(val key: String, val messages: List<LocalMessage>)
+private val searchIndexKeys = listOf("#") + ('A'..'Z').map { it.toString() }
+
+private fun searchIndexKey(chatName: String): String {
+    val first = chatName.trim().firstOrNull()?.uppercaseChar() ?: return "#"
+    return if (first in 'A'..'Z') first.toString() else "#"
+}
+
 @Composable
 fun Search(vm: AppViewModel) {
     LaunchedEffect(vm.query) { vm.refresh() }
     val listState = rememberLazyListState(vm.searchListIndex, vm.searchListOffset)
+    val scope = rememberCoroutineScope()
+    val messagesByKey = vm.results.groupBy { searchIndexKey(it.chatName) }
+    val sections = searchIndexKeys.mapNotNull { key ->
+        messagesByKey[key]?.let { messages ->
+            SearchSection(key, messages.sortedWith(compareBy<LocalMessage> { it.chatName.lowercase(Locale.ROOT) }.thenByDescending { it.date }))
+        }
+    }
+    val sectionStartIndices = buildMap {
+        var index = 3
+        sections.forEach { section ->
+            put(section.key, index)
+            index += 1 + section.messages.size
+        }
+    }
+    val activeIndexKey = sectionStartIndices.entries
+        .filter { it.value <= listState.firstVisibleItemIndex }
+        .maxByOrNull { it.value }
+        ?.key
+        ?: sections.firstOrNull()?.key
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("手机本地检索", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("多个关键词可用空格、逗号、顿号、分号、竖线或斜杠分隔；结果须同时包含全部关键词。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    fun moveToSection(key: String) {
+        sectionStartIndices[key]?.let { target ->
+            scope.launch { listState.animateScrollToItem(target) }
         }
-        item {
-            OutlinedTextField(
-                value = vm.query,
-                onValueChange = { vm.query = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("关键词（空格或逗号分隔）") },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
-                singleLine = true
-            )
-        }
-        item {
-            Text("${vm.results.size} 条结果 · ${vm.stats.saved} 条本机收藏", color = MaterialTheme.colorScheme.primary)
-        }
-        if (vm.results.isEmpty()) {
-            item { Empty("尚无本地消息", "先连接 Telegram 并选择会话同步，或载入演示数据。") }
-        }
-        items(vm.results, key = { it.id }) { message ->
-            MessageCard(
-                message,
-                {
-                    vm.open(
-                        message,
-                        listState.firstVisibleItemIndex,
-                        listState.firstVisibleItemScrollOffset
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(end = if (sections.isEmpty()) 0.dp else 34.dp),
+            state = listState,
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text("手机本地检索", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("多个关键词可用空格、逗号、顿号、分号、竖线或斜杠分隔；结果须同时包含全部关键词。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
+                OutlinedTextField(
+                    value = vm.query,
+                    onValueChange = { vm.query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("关键词（空格或逗号分隔）") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    singleLine = true
+                )
+            }
+            item {
+                Text("${vm.results.size} 条结果 · ${vm.stats.saved} 条本机收藏 · 按会话名称 #–Z 分组", color = MaterialTheme.colorScheme.primary)
+            }
+            if (vm.results.isEmpty()) {
+                item { Empty("尚无本地消息", "先连接 Telegram 并选择会话同步，或载入演示数据。") }
+            }
+            sections.forEach { section ->
+                item(key = "section-${section.key}") {
+                    Text(
+                        section.key,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 6.dp)
                     )
-                },
-                { vm.toggle(message) }
+                }
+                items(section.messages, key = { it.id }) { message ->
+                    MessageCard(
+                        message,
+                        {
+                            vm.open(
+                                message,
+                                listState.firstVisibleItemIndex,
+                                listState.firstVisibleItemScrollOffset
+                            )
+                        },
+                        { vm.toggle(message) }
+                    )
+                }
+            }
+        }
+
+        if (sections.isNotEmpty()) {
+            SearchIndexRail(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 4.dp, top = 14.dp, bottom = 14.dp),
+                availableKeys = sectionStartIndices.keys,
+                activeKey = activeIndexKey,
+                onSelect = ::moveToSection
             )
+        }
+    }
+}
+
+@Composable
+private fun SearchIndexRail(
+    modifier: Modifier = Modifier,
+    availableKeys: Set<String>,
+    activeKey: String?,
+    onSelect: (String) -> Unit
+) {
+    var railHeightPx by remember { mutableIntStateOf(0) }
+
+    fun nearestAvailableKey(y: Float): String? {
+        if (railHeightPx <= 0 || availableKeys.isEmpty()) return null
+        val rawIndex = (y / railHeightPx * searchIndexKeys.size).toInt().coerceIn(0, searchIndexKeys.lastIndex)
+        return searchIndexKeys.indices
+            .filter { searchIndexKeys[it] in availableKeys }
+            .minByOrNull { abs(it - rawIndex) }
+            ?.let { searchIndexKeys[it] }
+    }
+
+    Box(
+        modifier = modifier
+            .width(28.dp)
+            .fillMaxHeight()
+            .onSizeChanged { railHeightPx = it.height }
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
+            .pointerInput(availableKeys, railHeightPx) {
+                detectVerticalDragGestures(
+                    onDragStart = { offset -> nearestAvailableKey(offset.y)?.let(onSelect) },
+                    onVerticalDrag = { change, _ ->
+                        nearestAvailableKey(change.position.y)?.let(onSelect)
+                        change.consume()
+                    }
+                )
+            }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 6.dp),
+            verticalArrangement = Arrangement.SpaceEvenly,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            searchIndexKeys.forEach { key ->
+                val available = key in availableKeys
+                Text(
+                    text = key,
+                    fontSize = 9.sp,
+                    fontWeight = if (key == activeKey) FontWeight.Bold else FontWeight.Medium,
+                    color = when {
+                        key == activeKey -> MaterialTheme.colorScheme.primary
+                        available -> MaterialTheme.colorScheme.onSurfaceVariant
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
+                    },
+                    modifier = Modifier.clickable(enabled = available) { onSelect(key) }
+                )
+            }
         }
     }
 }
