@@ -76,6 +76,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var results by mutableStateOf(emptyList<LocalMessage>())
     var saved by mutableStateOf(emptyList<LocalMessage>())
     var stats by mutableStateOf(LocalStats(0, 0, 0))
+    var indexedChats by mutableStateOf(emptyList<IndexedChat>())
     var notice by mutableStateOf<String?>(null)
     var config by mutableStateOf(secure.apiConfig())
     var selected by mutableStateOf<LocalMessage?>(null)
@@ -91,6 +92,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         results = store.search(query)
         saved = store.saved()
         stats = store.stats()
+        indexedChats = store.indexedChats()
     }
 
     fun saveConfig(idText: String, hash: String) {
@@ -143,11 +145,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         notice = "已加载本地演示数据"
     }
 
+    fun deleteChatIndex(chat: IndexedChat) {
+        val deleted = store.deleteChatIndex(chat.chatId)
+        refresh()
+        if (selected?.chatId == chat.chatId) closeDetail()
+        notice = "已删除「${chat.chatName}」的 $deleted 条本机索引"
+    }
+
     fun clearIndex() {
-        store.clearIndex()
+        val deleted = store.clearIndex()
         refresh()
         selected = null
-        notice = "本地消息、收藏和搜索索引已清除"
+        notice = "已删除 $deleted 条本机消息、收藏和搜索索引"
     }
 }
 
@@ -675,11 +684,14 @@ fun Settings(vm: AppViewModel) {
     var id by remember(vm.config) { mutableStateOf(vm.config?.apiId?.toString() ?: "") }
     var hash by remember(vm.config) { mutableStateOf(vm.config?.apiHash ?: "") }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
+    var showIndexManager by rememberSaveable { mutableStateOf(false) }
+    var pendingChatDelete by remember { mutableStateOf<IndexedChat?>(null) }
 
     Column(
         Modifier
             .fillMaxSize()
-            .padding(20.dp),
+            .padding(20.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("本地安全设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -691,24 +703,57 @@ fun Settings(vm: AppViewModel) {
         }
         ElevatedCard {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("本地数据", style = MaterialTheme.typography.titleMedium)
+                Text("搜索索引管理", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${vm.stats.messages} 条消息 · ${vm.stats.chats} 个会话 · ${vm.stats.saved} 条本机收藏",
+                    "${vm.stats.messages} 条已索引消息 · ${vm.stats.chats} 个会话 · ${vm.stats.saved} 条本机收藏",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "清除后将删除本机同步消息、搜索索引和本机收藏，不影响 Telegram 账号中的聊天或收藏。",
+                    "删除索引只移除当前手机中本应用保存的消息和本机收藏，不会删除 Telegram 账号中的聊天、消息或收藏。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedButton(
-                    onClick = { if (vm.stats.messages > 0) confirmClear = true else vm.notice = "暂无本地数据可清除" },
+                    onClick = { if (vm.stats.messages > 0) confirmClear = true else vm.notice = "暂无搜索索引可删除" },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
                     Icon(Icons.Default.Delete, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("清除本地数据")
+                    Text("删除全部搜索索引")
+                }
+                TextButton(
+                    onClick = { showIndexManager = !showIndexManager },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(if (showIndexManager) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (showIndexManager) "收起会话索引" else "按会话删除索引（${vm.indexedChats.size}）")
+                }
+                if (showIndexManager) {
+                    HorizontalDivider()
+                    if (vm.indexedChats.isEmpty()) {
+                        Text("尚无可管理的本机索引。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        vm.indexedChats.forEach { chat ->
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(chat.chatName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "${chat.messages} 条已索引${if (chat.saved > 0) " · ${chat.saved} 条本机收藏" else ""}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                IconButton(onClick = { pendingChatDelete = chat }) {
+                                    Icon(Icons.Default.Delete, "删除此会话索引", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -719,8 +764,8 @@ fun Settings(vm: AppViewModel) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
             icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("清除本地数据？") },
-            text = { Text("这会删除当前设备中的同步消息、搜索索引和本机收藏。Telegram 账号中的聊天记录和收藏不会受到影响。") },
+            title = { Text("删除全部搜索索引？") },
+            text = { Text("这会删除当前设备中的全部同步消息、搜索索引和本机收藏。Telegram 账号中的聊天记录和收藏不会受到影响。") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -728,9 +773,28 @@ fun Settings(vm: AppViewModel) {
                         confirmClear = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("确认清除") }
+                ) { Text("确认删除") }
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } }
+        )
+    }
+
+    pendingChatDelete?.let { chat ->
+        AlertDialog(
+            onDismissRequest = { pendingChatDelete = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("删除「${chat.chatName}」的索引？") },
+            text = { Text("这会删除该会话在当前设备中保存的 ${chat.messages} 条索引消息${if (chat.saved > 0) "和 ${chat.saved} 条本机收藏" else ""}。Telegram 中的原始消息不会受到影响。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.deleteChatIndex(chat)
+                        pendingChatDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("确认删除") }
+            },
+            dismissButton = { TextButton(onClick = { pendingChatDelete = null }) { Text("取消") } }
         )
     }
 }

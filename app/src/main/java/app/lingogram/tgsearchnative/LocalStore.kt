@@ -14,6 +14,7 @@ import java.util.Locale
 data class ApiConfig(val apiId: Int, val apiHash: String)
 data class LocalMessage(val id: Long = 0, val remoteId: Long, val chatId: Long, val chatName: String, val sender: String, val date: String, val text: String, val saved: Boolean = false)
 data class LocalStats(val messages: Int, val chats: Int, val saved: Int)
+data class IndexedChat(val chatId: Long, val chatName: String, val messages: Int, val saved: Int)
 
 class SecureSettings(context: Context) {
     private val masterAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
@@ -33,8 +34,12 @@ class ArchiveStore(context: Context) : SQLiteOpenHelper(context, "tg_native_inde
     fun saved(): List<LocalMessage> = readableDatabase.query("messages",null,"saved=1",null,null,null,"date DESC").use{rows(it)}
     fun toggle(id:Long) { val before=readableDatabase.rawQuery("SELECT saved FROM messages WHERE id=?",arrayOf(id.toString())).use{it.moveToFirst()&&it.getInt(0)==1}; writableDatabase.execSQL("UPDATE messages SET saved=? WHERE id=?",arrayOf(if(before)0 else 1,id)) }
     fun stats():LocalStats=readableDatabase.rawQuery("SELECT count(*),count(DISTINCT chat_id),sum(saved) FROM messages",null).use{it.moveToFirst();LocalStats(it.getInt(0),it.getInt(1),if(it.isNull(2))0 else it.getInt(2))}
+    fun indexedChats(): List<IndexedChat> = readableDatabase.rawQuery("SELECT chat_id, chat_name, count(*), sum(saved) FROM messages GROUP BY chat_id, chat_name ORDER BY chat_name COLLATE NOCASE", null).use { cursor ->
+        buildList { while (cursor.moveToNext()) add(IndexedChat(cursor.getLong(0), cursor.getString(1), cursor.getInt(2), if (cursor.isNull(3)) 0 else cursor.getInt(3))) }
+    }
     fun deleteMessage(id: Long) { writableDatabase.delete("messages", "id=?", arrayOf(id.toString())) }
-    fun clearIndex(){writableDatabase.delete("messages",null,null)}
+    fun deleteChatIndex(chatId: Long): Int = writableDatabase.delete("messages", "chat_id=?", arrayOf(chatId.toString()))
+    fun clearIndex(): Int = writableDatabase.delete("messages",null,null)
     fun addDemo():Int = insert(listOf(LocalMessage(remoteId=1,chatId=100,chatName="产品讨论",sender="林晓",date="2026-08-12T09:30:00Z",text="TDLib 登录后，搜索页只检索手机本地同步并建立索引的消息。"),LocalMessage(remoteId=2,chatId=100,chatName="产品讨论",sender="你",date="2026-08-12T10:00:00Z",text="验证码和两步验证密码不会写入应用数据库或日志。"),LocalMessage(remoteId=3,chatId=200,chatName="项目进度",sender="陈峰",date="2026-08-13T10:00:00Z",text="请先选择会话，再同步最近消息到离线检索索引。")))
     private fun rows(c:Cursor):List<LocalMessage>{ val r=mutableListOf<LocalMessage>();while(c.moveToNext())r+=LocalMessage(c.getLong(c.getColumnIndexOrThrow("id")),c.getLong(c.getColumnIndexOrThrow("remote_id")),c.getLong(c.getColumnIndexOrThrow("chat_id")),c.getString(c.getColumnIndexOrThrow("chat_name")),c.getString(c.getColumnIndexOrThrow("sender")),c.getString(c.getColumnIndexOrThrow("date")),c.getString(c.getColumnIndexOrThrow("text")),c.getInt(c.getColumnIndexOrThrow("saved"))==1);return r }
 }

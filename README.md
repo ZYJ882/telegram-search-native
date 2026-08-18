@@ -11,7 +11,7 @@
 | 离线本地检索 | 支持单词和多关键词包含检索；搜索结果按会话名称分组，可通过右侧垂直滑块快速定位。 |
 | 消息详情 | 长文本滚动、长按选择文字、一键复制全文、单条本地删除。 |
 | 本机收藏夹 | 搜索结果和消息详情可书签收藏；“收藏”页集中查看和移除收藏，不写入 Telegram 账号。 |
-| 本地索引管理 | 设置页可清除本机消息、搜索索引和本机收藏；不影响 Telegram 中的原始消息。 |
+| 本地索引管理 | 设置页支持删除全部搜索索引或按会话删除索引；不影响 Telegram 中的原始消息。 |
 | Telegram 操作 | 尝试转发到 Saved Messages，并在 Telegram 提供外链时跳转官方客户端。 |
 | 本地隐私 | 不含服务器、云同步或分析 SDK；API 配置通过 Android Keystore 支撑的加密偏好保存。 |
 
@@ -48,6 +48,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
+| v1.2.0 | 搜索索引管理、全部索引删除与按会话删除。 | [Release v1.2.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.2.0-index-manager) |
 | v1.1.0 | 右侧垂直滑块、宽触摸热区、进度浮层与快速定位。 | [Release v1.1.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.1.0-search-slider) |
 | v1.0.1 | 覆盖层连续触摸追踪，修复右侧字母区滑动。 | [Release v1.0.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.0.1-pointer-overlay) |
 | v1.0.0 | 紧凑抽屉式字母索引、长按滑动浮层和搜索列表滚动优化。 | [Release v1.0.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.0.0-drawer-index) |

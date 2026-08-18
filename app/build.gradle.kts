@@ -11,8 +11,8 @@ android {
         applicationId = "app.lingogram.tgsearchnative"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.1.0-search-slider"
+        versionCode = 19
+        versionName = "1.2.0-index-manager"
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
