@@ -9,7 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -271,7 +271,7 @@ fun Search(vm: AppViewModel) {
 
     fun moveToSection(key: String) {
         sectionStartIndices[key]?.let { target ->
-            scope.launch { listState.animateScrollToItem(target) }
+            scope.launch { listState.scrollToItem(target) }
         }
     }
 
@@ -351,14 +351,26 @@ private fun SearchIndexRail(
     onSelect: (String) -> Unit
 ) {
     var railHeightPx by remember { mutableIntStateOf(0) }
+    var lastTouchedKey by remember { mutableStateOf<String?>(null) }
 
     fun nearestAvailableKey(y: Float): String? {
         if (railHeightPx <= 0 || availableKeys.isEmpty()) return null
-        val rawIndex = (y / railHeightPx * searchIndexKeys.size).toInt().coerceIn(0, searchIndexKeys.lastIndex)
+        val rawIndex = (y / railHeightPx * searchIndexKeys.size)
+            .toInt()
+            .coerceIn(0, searchIndexKeys.lastIndex)
         return searchIndexKeys.indices
             .filter { searchIndexKeys[it] in availableKeys }
             .minByOrNull { abs(it - rawIndex) }
             ?.let { searchIndexKeys[it] }
+    }
+
+    fun selectAt(y: Float) {
+        nearestAvailableKey(y)?.let { key ->
+            if (key != lastTouchedKey) {
+                lastTouchedKey = key
+                onSelect(key)
+            }
+        }
     }
 
     Box(
@@ -368,10 +380,13 @@ private fun SearchIndexRail(
             .onSizeChanged { railHeightPx = it.height }
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
             .pointerInput(availableKeys, railHeightPx) {
-                detectVerticalDragGestures(
-                    onDragStart = { offset -> nearestAvailableKey(offset.y)?.let(onSelect) },
-                    onVerticalDrag = { change, _ ->
-                        nearestAvailableKey(change.position.y)?.let(onSelect)
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        lastTouchedKey = null
+                        selectAt(offset.y)
+                    },
+                    onDrag = { change, _ ->
+                        selectAt(change.position.y)
                         change.consume()
                     }
                 )

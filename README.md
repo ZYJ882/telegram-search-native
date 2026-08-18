@@ -48,6 +48,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
+| v0.9.1 | 修复右侧字母索引条上下拖动跳转。 | [Release v0.9.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.1-index-drag-fix) |
 | v0.9.0 | 搜索结果右侧 #–Z 索引、会话名称分组和上下拖动快速定位。 | [Release v0.9.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.0-search-index-rail) |
 | v0.8.1 | 多关键词全部包含检索，支持空格和常见分隔符。 | [Release v0.8.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.8.1-multi-keyword-search) |
 | v0.8.0 | 本机收藏夹、单条本地删除与本地数据清除。 | [Release v0.8.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.8.0-local-library) |

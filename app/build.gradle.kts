@@ -11,8 +11,8 @@ android {
         applicationId = "app.lingogram.tgsearchnative"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.9.0-search-index-rail"
+        versionCode = 15
+        versionName = "0.9.1-index-drag-fix"
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
