@@ -534,37 +534,60 @@ private fun SearchQuickSlider(
 @Composable
 fun SavedMessages(vm: AppViewModel) {
     val listState = rememberLazyListState()
+    var requestedListIndex by remember { mutableStateOf<Int?>(null) }
+    val firstSavedItemIndex = 2
+    val lastSavedItemIndex = firstSavedItemIndex + vm.saved.size - 1
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("本机收藏", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(
-                "收藏仅保存在当前设备的本地索引中，不会同步到 Telegram 收藏夹。",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    LaunchedEffect(requestedListIndex) {
+        requestedListIndex?.let { listState.scrollToItem(it) }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(end = if (vm.saved.size > 1) 26.dp else 0.dp),
+            state = listState,
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text("本机收藏", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "收藏仅保存在当前设备的本地索引中，不会同步到 Telegram 收藏夹。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            item {
+                Text("${vm.saved.size} 条本机收藏${if (vm.saved.size > 1) " · 可通过右侧滑块快速定位" else ""}", color = MaterialTheme.colorScheme.primary)
+            }
+            if (vm.saved.isEmpty()) {
+                item { Empty("暂无本机收藏", "在搜索结果或消息详情点击书签图标即可加入收藏。") }
+            }
+            items(vm.saved, key = { it.id }) { message ->
+                MessageCard(
+                    message,
+                    {
+                        vm.open(
+                            message,
+                            listState.firstVisibleItemIndex,
+                            listState.firstVisibleItemScrollOffset
+                        )
+                    },
+                    { vm.toggle(message) }
+                )
+            }
         }
-        item {
-            Text("${vm.saved.size} 条本机收藏", color = MaterialTheme.colorScheme.primary)
-        }
-        if (vm.saved.isEmpty()) {
-            item { Empty("暂无本机收藏", "在搜索结果或消息详情点击书签图标即可加入收藏。") }
-        }
-        items(vm.saved, key = { it.id }) { message ->
-            MessageCard(
-                message,
-                {
-                    vm.open(
-                        message,
-                        listState.firstVisibleItemIndex,
-                        listState.firstVisibleItemScrollOffset
-                    )
-                },
-                { vm.toggle(message) }
+
+        if (vm.saved.size > 1) {
+            SearchQuickSlider(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 2.dp, top = 24.dp, bottom = 24.dp),
+                listState = listState,
+                firstSearchItemIndex = firstSavedItemIndex,
+                lastSearchItemIndex = lastSavedItemIndex,
+                onSeekTo = { requestedListIndex = it }
             )
         }
     }
@@ -664,6 +687,14 @@ fun Sync(vm: AppViewModel) {
         .filter { !it.selected && (chatQuery.isBlank() || it.title.contains(chatQuery, ignoreCase = true)) }
         .sortedBy { it.title.lowercase() }
     val visibleChats = selectedChats + matchingUnselected
+    var requestedListIndex by remember { mutableStateOf<Int?>(null) }
+    val chatItemsBeforeList = 5 + (if (syncing) 1 else 0) + (if (selectedChats.isNotEmpty()) 1 else 0)
+    val firstChatItemIndex = chatItemsBeforeList
+    val lastChatItemIndex = firstChatItemIndex + visibleChats.size - 1
+
+    LaunchedEffect(requestedListIndex) {
+        requestedListIndex?.let { listState.scrollToItem(it) }
+    }
 
     fun choose(chat: RemoteChat) {
         val willSelect = !chat.selected
@@ -671,81 +702,97 @@ fun Sync(vm: AppViewModel) {
         if (willSelect) scope.launch { listState.animateScrollToItem(0) }
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item {
-            Text("选择会话并同步", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("按名称搜索会话；已勾选会话始终置顶。对已选会话按页拉取全部可访问的历史文本。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        item {
-            OutlinedTextField(
-                chatQuery,
-                { chatQuery = it },
-                Modifier.fillMaxWidth(),
-                label = { Text("搜索会话名称") },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
-                trailingIcon = {
-                    if (chatQuery.isNotBlank()) {
-                        IconButton(onClick = { chatQuery = "" }) { Icon(Icons.Default.Close, "清除搜索") }
-                    }
-                },
-                singleLine = true
-            )
-        }
-        item {
-            Text(
-                "已选 ${selectedChats.size} 个会话${if (chatQuery.isNotBlank()) " · 搜索结果 ${matchingUnselected.size} 个未选会话" else ""}",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        item {
-            Button(
-                onClick = vm.gateway::syncSelected,
-                enabled = vm.gateway.stage == AuthStage.Ready && !syncing && selectedChats.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.CloudDownload, null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (syncing) "正在同步全部历史…" else "同步已选 ${selectedChats.size} 个会话的全部历史")
-            }
-        }
-        if (syncing) {
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier
+                .fillMaxSize()
+                .padding(end = if (visibleChats.size > 1 && !syncing) 26.dp else 0.dp),
+            state = listState,
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             item {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(
-                    "会话 ${vm.gateway.syncFinishedChats + 1}/${vm.gateway.syncTotalChats} · ${vm.gateway.syncCurrentChat ?: "准备中"} · 第 ${vm.gateway.syncPagesFetched} 页 · 已扫描 ${vm.gateway.syncProcessedMessages} 条，新增 ${vm.gateway.syncIndexedMessages} 条文本索引",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                Text("选择会话并同步", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("按名称搜索会话；已勾选会话始终置顶。对已选会话按页拉取全部可访问的历史文本。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
+                OutlinedTextField(
+                    chatQuery,
+                    { chatQuery = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text("搜索会话名称") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    trailingIcon = {
+                        if (chatQuery.isNotBlank()) {
+                            IconButton(onClick = { chatQuery = "" }) { Icon(Icons.Default.Close, "清除搜索") }
+                        }
+                    },
+                    singleLine = true
                 )
-                OutlinedButton(onClick = vm.gateway::cancelSync, modifier = Modifier.fillMaxWidth()) {
-                    Text("完成当前页后取消同步")
+            }
+            item {
+                Text(
+                    "已选 ${selectedChats.size} 个会话${if (chatQuery.isNotBlank()) " · 搜索结果 ${matchingUnselected.size} 个未选会话" else ""}${if (visibleChats.size > 1 && !syncing) " · 可通过右侧滑块快速定位" else ""}",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            item {
+                Button(
+                    onClick = vm.gateway::syncSelected,
+                    enabled = vm.gateway.stage == AuthStage.Ready && !syncing && selectedChats.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.CloudDownload, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (syncing) "正在同步全部历史…" else "同步已选 ${selectedChats.size} 个会话的全部历史")
                 }
             }
-        }
-        item { Text(vm.gateway.syncNote, color = MaterialTheme.colorScheme.primary) }
-        if (vm.gateway.chats.isEmpty()) item { Empty("尚无会话", "连接成功后，TDLib 会加载聊天列表。") }
-        if (selectedChats.isNotEmpty()) item {
-            Text("已选会话（置顶）", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        }
-        items(visibleChats, key = { it.id }) { chat ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !syncing) { choose(chat) }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(chat.selected, { choose(chat) }, enabled = !syncing)
-                Spacer(Modifier.width(10.dp))
-                Text(chat.title, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (syncing) {
+                item {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(
+                        "会话 ${vm.gateway.syncFinishedChats + 1}/${vm.gateway.syncTotalChats} · ${vm.gateway.syncCurrentChat ?: "准备中"} · 第 ${vm.gateway.syncPagesFetched} 页 · 已扫描 ${vm.gateway.syncProcessedMessages} 条，新增 ${vm.gateway.syncIndexedMessages} 条文本索引",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = vm.gateway::cancelSync, modifier = Modifier.fillMaxWidth()) {
+                        Text("完成当前页后取消同步")
+                    }
+                }
+            }
+            item { Text(vm.gateway.syncNote, color = MaterialTheme.colorScheme.primary) }
+            if (vm.gateway.chats.isEmpty()) item { Empty("尚无会话", "连接成功后，TDLib 会加载聊天列表。") }
+            if (selectedChats.isNotEmpty()) item {
+                Text("已选会话（置顶）", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            }
+            items(visibleChats, key = { it.id }) { chat ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !syncing) { choose(chat) }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(chat.selected, { choose(chat) }, enabled = !syncing)
+                    Spacer(Modifier.width(10.dp))
+                    Text(chat.title, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (visibleChats.isEmpty() && vm.gateway.chats.isNotEmpty()) {
+                item { Empty("未找到会话", "修改搜索词，或清除搜索框查看全部会话。") }
             }
         }
-        if (visibleChats.isEmpty() && vm.gateway.chats.isNotEmpty()) {
-            item { Empty("未找到会话", "修改搜索词，或清除搜索框查看全部会话。") }
+
+        if (visibleChats.size > 1 && !syncing) {
+            SearchQuickSlider(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 2.dp, top = 24.dp, bottom = 24.dp),
+                listState = listState,
+                firstSearchItemIndex = firstChatItemIndex,
+                lastSearchItemIndex = lastChatItemIndex,
+                onSeekTo = { requestedListIndex = it }
+            )
         }
     }
 }
