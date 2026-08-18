@@ -265,14 +265,6 @@ fun Nav(selected: Tab, go: (Tab) -> Unit) {
     }
 }
 
-private data class SearchSection(val key: String, val messages: List<LocalMessage>)
-private val searchIndexKeys = listOf("#") + ('A'..'Z').map { it.toString() }
-
-private fun searchIndexKey(chatName: String): String {
-    val first = chatName.trim().firstOrNull()?.uppercaseChar() ?: return "#"
-    return if (first in 'A'..'Z') first.toString() else "#"
-}
-
 @Composable
 fun Search(vm: AppViewModel) {
     val listState = rememberLazyListState(vm.searchListIndex, vm.searchListOffset)
@@ -290,22 +282,11 @@ fun Search(vm: AppViewModel) {
         selectionMode = false
         selectedIds = emptySet()
     }
-    val sections = remember(vm.results) {
-        val messagesByKey = vm.results.groupBy { searchIndexKey(it.chatName) }
-        searchIndexKeys.mapNotNull { key ->
-            messagesByKey[key]?.let { messages ->
-                SearchSection(
-                    key,
-                    messages.sortedWith(
-                        compareBy<LocalMessage> { it.chatName.lowercase(Locale.ROOT) }
-                            .thenByDescending { it.date }
-                    )
-                )
-            }
-        }
+    val timeOrderedMessages = remember(vm.results) {
+        vm.results.sortedByDescending { it.date }
     }
     val messageItemStartIndex = 3
-    val totalListItems = vm.results.size + sections.size
+    val totalListItems = timeOrderedMessages.size
     val lastSearchListIndex = messageItemStartIndex + totalListItems - 1
     var requestedListIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -317,7 +298,7 @@ fun Search(vm: AppViewModel) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(end = if (sections.isEmpty()) 0.dp else 26.dp),
+                .padding(end = if (timeOrderedMessages.isEmpty()) 0.dp else 26.dp),
             state = listState,
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -337,47 +318,36 @@ fun Search(vm: AppViewModel) {
                 )
             }
             item {
-                Text("${vm.results.size} 条结果 · ${vm.stats.saved} 条本机收藏 · 可通过右侧滑块快速定位", color = MaterialTheme.colorScheme.primary)
+                Text("${vm.results.size} 条结果 · ${vm.stats.saved} 条本机收藏 · 按时间排序，可通过右侧滑块快速定位", color = MaterialTheme.colorScheme.primary)
             }
             if (vm.results.isEmpty()) {
                 item { Empty("尚无本地消息", "先连接 Telegram 并选择会话同步，或载入演示数据。") }
             }
-            sections.forEach { section ->
-                item(key = "section-${section.key}") {
-                    Text(
-                        section.key,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
-                }
-                items(section.messages, key = { it.id }) { message ->
-                    MessageCard(
-                        message = message,
-                        open = {
-                            vm.open(
-                                message,
-                                listState.firstVisibleItemIndex,
-                                listState.firstVisibleItemScrollOffset
-                            )
-                        },
-                        toggle = { vm.toggle(message) },
-                        selectionMode = selectionMode,
-                        selected = message.id in selectedIds,
-                        onToggleSelection = {
-                            selectedIds = if (message.id in selectedIds) selectedIds - message.id else selectedIds + message.id
-                        },
-                        onLongPress = {
-                            selectionMode = true
-                            selectedIds = selectedIds + message.id
-                        }
-                    )
-                }
+            items(timeOrderedMessages, key = { it.id }) { message ->
+                MessageCard(
+                    message = message,
+                    open = {
+                        vm.open(
+                            message,
+                            listState.firstVisibleItemIndex,
+                            listState.firstVisibleItemScrollOffset
+                        )
+                    },
+                    toggle = { vm.toggle(message) },
+                    selectionMode = selectionMode,
+                    selected = message.id in selectedIds,
+                    onToggleSelection = {
+                        selectedIds = if (message.id in selectedIds) selectedIds - message.id else selectedIds + message.id
+                    },
+                    onLongPress = {
+                        selectionMode = true
+                        selectedIds = selectedIds + message.id
+                    }
+                )
             }
         }
 
-        if (sections.isNotEmpty() && !selectionMode) {
+        if (timeOrderedMessages.isNotEmpty() && !selectionMode) {
             SearchQuickSlider(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
