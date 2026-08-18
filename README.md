@@ -8,7 +8,7 @@
 |---|---|
 | 本地 Telegram 登录 | 通过 TDLib 完成手机号、验证码、两步验证和其他设备确认状态处理。 |
 | 选择性全量同步 | 按会话选择、名称搜索、已选置顶；逐页请求可访问的历史消息，可手动停止。 |
-| 离线本地检索 | 支持单词和多关键词包含检索；搜索结果按会话名称分组，可通过右侧 #–Z 索引快速定位。 |
+| 离线本地检索 | 支持单词和多关键词包含检索；搜索结果按会话名称分组，可通过右侧紧凑 #–Z 索引长按滑动快速定位。 |
 | 消息详情 | 长文本滚动、长按选择文字、一键复制全文、单条本地删除。 |
 | 本机收藏夹 | 搜索结果和消息详情可书签收藏；“收藏”页集中查看和移除收藏，不写入 Telegram 账号。 |
 | 本地索引管理 | 设置页可清除本机消息、搜索索引和本机收藏；不影响 Telegram 中的原始消息。 |
@@ -48,6 +48,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
+| v1.0.0 | 紧凑抽屉式字母索引、长按滑动浮层和搜索列表滚动优化。 | [Release v1.0.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.0.0-drawer-index) |
 | v0.9.1 | 修复右侧字母索引条上下拖动跳转。 | [Release v0.9.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.1-index-drag-fix) |
 | v0.9.0 | 搜索结果右侧 #–Z 索引、会话名称分组和上下拖动快速定位。 | [Release v0.9.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.0-search-index-rail) |
 | v0.8.1 | 多关键词全部包含检索，支持空格和常见分隔符。 | [Release v0.8.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.8.1-multi-keyword-search) |

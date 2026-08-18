@@ -9,7 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -249,29 +249,43 @@ private fun searchIndexKey(chatName: String): String {
 fun Search(vm: AppViewModel) {
     LaunchedEffect(vm.query) { vm.refresh() }
     val listState = rememberLazyListState(vm.searchListIndex, vm.searchListOffset)
-    val scope = rememberCoroutineScope()
-    val messagesByKey = vm.results.groupBy { searchIndexKey(it.chatName) }
-    val sections = searchIndexKeys.mapNotNull { key ->
-        messagesByKey[key]?.let { messages ->
-            SearchSection(key, messages.sortedWith(compareBy<LocalMessage> { it.chatName.lowercase(Locale.ROOT) }.thenByDescending { it.date }))
+    val sections = remember(vm.results) {
+        val messagesByKey = vm.results.groupBy { searchIndexKey(it.chatName) }
+        searchIndexKeys.mapNotNull { key ->
+            messagesByKey[key]?.let { messages ->
+                SearchSection(
+                    key,
+                    messages.sortedWith(
+                        compareBy<LocalMessage> { it.chatName.lowercase(Locale.ROOT) }
+                            .thenByDescending { it.date }
+                    )
+                )
+            }
         }
     }
-    val sectionStartIndices = buildMap {
-        var index = 3
-        sections.forEach { section ->
-            put(section.key, index)
-            index += 1 + section.messages.size
+    val sectionStartIndices = remember(sections) {
+        buildMap {
+            var index = 3
+            sections.forEach { section ->
+                put(section.key, index)
+                index += 1 + section.messages.size
+            }
         }
     }
-    val activeIndexKey = sectionStartIndices.entries
-        .filter { it.value <= listState.firstVisibleItemIndex }
-        .maxByOrNull { it.value }
-        ?.key
-        ?: sections.firstOrNull()?.key
+    val activeIndexKey by remember(listState, sectionStartIndices, sections) {
+        derivedStateOf {
+            sectionStartIndices.entries
+                .filter { it.value <= listState.firstVisibleItemIndex }
+                .maxByOrNull { it.value }
+                ?.key
+                ?: sections.firstOrNull()?.key
+        }
+    }
+    var requestedIndexKey by remember { mutableStateOf<String?>(null) }
 
-    fun moveToSection(key: String) {
-        sectionStartIndices[key]?.let { target ->
-            scope.launch { listState.scrollToItem(target) }
+    LaunchedEffect(requestedIndexKey, sectionStartIndices) {
+        requestedIndexKey?.let { key ->
+            sectionStartIndices[key]?.let { listState.scrollToItem(it) }
         }
     }
 
@@ -279,7 +293,7 @@ fun Search(vm: AppViewModel) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(end = if (sections.isEmpty()) 0.dp else 34.dp),
+                .padding(end = if (sections.isEmpty()) 0.dp else 26.dp),
             state = listState,
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -334,10 +348,10 @@ fun Search(vm: AppViewModel) {
             SearchIndexRail(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 4.dp, top = 14.dp, bottom = 14.dp),
+                    .padding(end = 2.dp),
                 availableKeys = sectionStartIndices.keys,
                 activeKey = activeIndexKey,
-                onSelect = ::moveToSection
+                onSelect = { requestedIndexKey = it }
             )
         }
     }
@@ -352,16 +366,17 @@ private fun SearchIndexRail(
 ) {
     var railHeightPx by remember { mutableIntStateOf(0) }
     var lastTouchedKey by remember { mutableStateOf<String?>(null) }
+    var isDragging by remember { mutableStateOf(false) }
+    val availableIndices = remember(availableKeys) {
+        searchIndexKeys.indices.filter { searchIndexKeys[it] in availableKeys }
+    }
 
     fun nearestAvailableKey(y: Float): String? {
-        if (railHeightPx <= 0 || availableKeys.isEmpty()) return null
+        if (railHeightPx <= 0 || availableIndices.isEmpty()) return null
         val rawIndex = (y / railHeightPx * searchIndexKeys.size)
             .toInt()
             .coerceIn(0, searchIndexKeys.lastIndex)
-        return searchIndexKeys.indices
-            .filter { searchIndexKeys[it] in availableKeys }
-            .minByOrNull { abs(it - rawIndex) }
-            ?.let { searchIndexKeys[it] }
+        return availableIndices.minByOrNull { abs(it - rawIndex) }?.let { searchIndexKeys[it] }
     }
 
     fun selectAt(y: Float) {
@@ -375,27 +390,46 @@ private fun SearchIndexRail(
 
     Box(
         modifier = modifier
-            .width(28.dp)
-            .fillMaxHeight()
-            .onSizeChanged { railHeightPx = it.height }
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
-            .pointerInput(availableKeys, railHeightPx) {
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        lastTouchedKey = null
-                        selectAt(offset.y)
-                    },
-                    onDrag = { change, _ ->
-                        selectAt(change.position.y)
-                        change.consume()
-                    }
-                )
-            }
+            .width(72.dp)
+            .height(370.dp)
     ) {
+        if (isDragging && lastTouchedKey != null) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(52.dp),
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp),
+                shadowElevation = 4.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(lastTouchedKey!!, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(vertical = 6.dp),
+                .align(Alignment.CenterEnd)
+                .width(22.dp)
+                .fillMaxHeight()
+                .onSizeChanged { railHeightPx = it.height }
+                .pointerInput(availableKeys, railHeightPx) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { offset ->
+                            isDragging = true
+                            lastTouchedKey = null
+                            selectAt(offset.y)
+                        },
+                        onDragEnd = { isDragging = false },
+                        onDragCancel = { isDragging = false },
+                        onDrag = { change, _ ->
+                            selectAt(change.position.y)
+                            change.consume()
+                        }
+                    )
+                },
             verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -403,7 +437,7 @@ private fun SearchIndexRail(
                 val available = key in availableKeys
                 Text(
                     text = key,
-                    fontSize = 9.sp,
+                    fontSize = 8.sp,
                     fontWeight = if (key == activeKey) FontWeight.Bold else FontWeight.Medium,
                     color = when {
                         key == activeKey -> MaterialTheme.colorScheme.primary
