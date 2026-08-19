@@ -77,6 +77,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var tab by mutableStateOf(Tab.SEARCH)
     var query by mutableStateOf("")
+    var savedQuery by mutableStateOf("")
     var results by mutableStateOf(emptyList<LocalMessage>())
     var saved by mutableStateOf(emptyList<LocalMessage>())
     var stats by mutableStateOf(LocalStats(0, 0, 0))
@@ -95,9 +96,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() {
         results = store.search(query)
-        saved = store.saved()
+        refreshSaved()
         stats = store.stats()
         indexedChats = store.indexedChats()
+    }
+
+    fun refreshSaved() {
+        saved = store.saved(savedQuery)
+    }
+
+    fun updateSavedQuery(value: String) {
+        savedQuery = value
+        refreshSaved()
     }
 
     fun saveConfig(idText: String, hash: String) {
@@ -538,11 +548,15 @@ private fun SearchQuickSlider(
 fun SavedMessages(vm: AppViewModel) {
     val listState = rememberLazyListState()
     var requestedListIndex by remember { mutableStateOf<Int?>(null) }
-    val firstSavedItemIndex = 2
+    val firstSavedItemIndex = 3
     val lastSavedItemIndex = firstSavedItemIndex + vm.saved.size - 1
+    val hasSavedSearch = vm.savedQuery.isNotBlank()
 
     LaunchedEffect(requestedListIndex) {
         requestedListIndex?.let { listState.scrollToItem(it) }
+    }
+    LaunchedEffect(vm.savedQuery) {
+        listState.scrollToItem(0)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -557,15 +571,46 @@ fun SavedMessages(vm: AppViewModel) {
             item {
                 Text("本机收藏", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "收藏仅保存在当前设备的本地索引中，不会同步到 Telegram 收藏夹。",
+                    "收藏仅保存在当前设备的本地索引中，不会同步到 Telegram 收藏夹。支持多个关键词同时包含检索。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             item {
-                Text("${vm.saved.size} 条本机收藏${if (vm.saved.size > 1) " · 可通过右侧滑块快速定位" else ""}", color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(
+                    value = vm.savedQuery,
+                    onValueChange = vm::updateSavedQuery,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("搜索本机收藏（空格或逗号分隔）") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    trailingIcon = {
+                        if (hasSavedSearch) {
+                            IconButton(onClick = { vm.updateSavedQuery("") }) {
+                                Icon(Icons.Default.Close, "清除收藏搜索")
+                            }
+                        }
+                    },
+                    singleLine = true
+                )
+            }
+            item {
+                val countText = if (hasSavedSearch) {
+                    "${vm.saved.size} 条收藏搜索结果 · ${vm.stats.saved} 条本机收藏"
+                } else {
+                    "${vm.stats.saved} 条本机收藏"
+                }
+                Text(
+                    "$countText${if (vm.saved.size > 1) " · 可通过右侧滑块快速定位" else ""}",
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             if (vm.saved.isEmpty()) {
-                item { Empty("暂无本机收藏", "在搜索结果或消息详情点击书签图标即可加入收藏。") }
+                item {
+                    if (hasSavedSearch) {
+                        Empty("未找到本机收藏", "修改关键词，或清除搜索框查看全部本机收藏。")
+                    } else {
+                        Empty("暂无本机收藏", "在搜索结果或消息详情点击书签图标即可加入收藏。")
+                    }
+                }
             }
             items(vm.saved, key = { it.id }) { message ->
                 MessageCard(

@@ -48,7 +48,15 @@ class ArchiveStore(context: Context) : SQLiteOpenHelper(context, "tg_native_inde
     fun insert(items: List<LocalMessage>): Int { var count = 0; writableDatabase.beginTransaction(); try { items.forEach { m -> val s = writableDatabase.compileStatement("INSERT OR IGNORE INTO messages(remote_id,chat_id,chat_name,sender,date,text,normalized) VALUES(?,?,?,?,?,?,?)"); s.bindLong(1,m.remoteId);s.bindLong(2,m.chatId);s.bindString(3,m.chatName);s.bindString(4,m.sender);s.bindString(5,m.date);s.bindString(6,m.text);s.bindString(7,m.text.lowercase(Locale.ROOT));if(s.executeInsert()!=-1L)count++;s.close() }; writableDatabase.setTransactionSuccessful() } finally { writableDatabase.endTransaction() }; return count }
     private fun searchTerms(query: String): List<String> = query.lowercase(Locale.ROOT).split(Regex("[\\s,，、;；|/]+")).filter { it.isNotBlank() }.distinct()
     fun search(q: String, chat: Long? = null): List<LocalMessage> { val where=mutableListOf<String>(); val args=mutableListOf<String>(); searchTerms(q).forEach{term->where+="normalized LIKE ?";args+="%$term%"};if(chat!=null){where+="chat_id=?";args+=chat.toString()}; return readableDatabase.query("messages",null,where.joinToString(" AND ").ifBlank{null},args.toTypedArray(),null,null,"date DESC").use{c->rows(c)} }
-    fun saved(): List<LocalMessage> = readableDatabase.query("messages",null,"saved=1",null,null,null,"date DESC").use{rows(it)}
+    fun saved(query: String = ""): List<LocalMessage> {
+        val where = mutableListOf("saved=1")
+        val args = mutableListOf<String>()
+        searchTerms(query).forEach { term ->
+            where += "normalized LIKE ?"
+            args += "%$term%"
+        }
+        return readableDatabase.query("messages", null, where.joinToString(" AND "), args.toTypedArray(), null, null, "date DESC").use { rows(it) }
+    }
     fun toggle(id:Long) { val before=readableDatabase.rawQuery("SELECT saved FROM messages WHERE id=?",arrayOf(id.toString())).use{it.moveToFirst()&&it.getInt(0)==1}; writableDatabase.execSQL("UPDATE messages SET saved=? WHERE id=?",arrayOf(if(before)0 else 1,id)) }
     fun stats():LocalStats=readableDatabase.rawQuery("SELECT count(*),count(DISTINCT chat_id),sum(saved) FROM messages",null).use{it.moveToFirst();LocalStats(it.getInt(0),it.getInt(1),if(it.isNull(2))0 else it.getInt(2))}
     fun indexedChats(): List<IndexedChat> = readableDatabase.rawQuery("SELECT chat_id, chat_name, count(*), sum(saved) FROM messages GROUP BY chat_id, chat_name ORDER BY chat_name COLLATE NOCASE", null).use { cursor ->
