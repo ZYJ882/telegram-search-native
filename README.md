@@ -13,7 +13,8 @@
 | 本机收藏夹 | 搜索结果和消息详情可书签收藏；“收藏”页集中查看和移除收藏，支持右侧滑块快速定位，不写入 Telegram 账号。 |
 | 本地索引管理 | 设置页支持删除全部搜索索引或按会话删除索引；不影响 Telegram 中的原始消息。 |
 | Telegram 操作 | 尝试转发到 Saved Messages，并在 Telegram 提供外链时跳转官方客户端。 |
-| 本地隐私 | 不含服务器、云同步或分析 SDK；API 配置通过 Android Keystore 支撑的加密偏好保存。 |
+| 本地隐私 | 不含服务器、云同步或分析 SDK；手动填写的 API 配置通过 Android Keystore 支撑的加密偏好保存。 |
+| 源码自定义构建 | 可通过本地 `local.properties`、环境变量或 Gradle 属性注入自己的 API 参数；正式 Release 与自行构建路径相互独立。 |
 
 ## 快速开始
 
@@ -44,10 +45,15 @@ export ANDROID_HOME=/path/to/android-sdk
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### 使用自己的 API 构建
+
+公开源码不包含任何真实 API 参数。克隆后可继续在应用“设置”页手动填写，也可在构建时通过 `TG_DEFAULT_API_ID` 和 `TG_DEFAULT_API_HASH` 注入自己的默认参数。环境变量、Gradle 属性与 `local.properties` 的优先级和完整示例见 [使用自己的 Telegram API 构建](docs/BUILD_WITH_OWN_API.md)。手动保存到设备的 API 参数始终优先于构建默认值。
+
 ## 版本与下载
 
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
+| v1.5.0 | 支持使用自己的 API 构建；设置页 API ID / Hash 默认遮蔽并可用小眼睛显示或隐藏。 | [Release v1.5.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.5.0-build-api-privacy) |
 | v1.4.0 | 收藏页与同步页增加右侧垂直滑块，可快速定位长列表。 | [Release v1.4.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.4.0-multi-page-slider) |
 | v1.3.1 | 移除 # 与字母分组，搜索结果按时间顺序显示。 | [Release v1.3.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.3.1-time-list) |
 | v1.3.0 | 搜索结果长按多选、全选、批量本机收藏与批量删除。 | [Release v1.3.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.3.0-multi-select) |

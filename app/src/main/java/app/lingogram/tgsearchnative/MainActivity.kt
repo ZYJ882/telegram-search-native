@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,7 +82,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var stats by mutableStateOf(LocalStats(0, 0, 0))
     var indexedChats by mutableStateOf(emptyList<IndexedChat>())
     var notice by mutableStateOf<String?>(null)
-    var config by mutableStateOf(secure.apiConfig())
+    var config by mutableStateOf(secure.customApiConfig())
+    val hasBundledApiConfig = secure.hasBundledApiConfig()
     var selected by mutableStateOf<LocalMessage?>(null)
     var searchListIndex by mutableIntStateOf(0)
     var searchListOffset by mutableIntStateOf(0)
@@ -104,7 +107,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         secure.saveApiConfig(id, hash)
-        config = secure.apiConfig()
+        config = secure.customApiConfig()
         gateway.restart()
         notice = "参数已加密保存到当前设备"
     }
@@ -801,6 +804,8 @@ fun Sync(vm: AppViewModel) {
 fun Settings(vm: AppViewModel) {
     var id by remember(vm.config) { mutableStateOf(vm.config?.apiId?.toString() ?: "") }
     var hash by remember(vm.config) { mutableStateOf(vm.config?.apiHash ?: "") }
+    var showId by rememberSaveable { mutableStateOf(false) }
+    var showHash by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var showIndexManager by rememberSaveable { mutableStateOf(false) }
     var pendingChatDelete by remember { mutableStateOf<IndexedChat?>(null) }
@@ -813,9 +818,46 @@ fun Settings(vm: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("本地安全设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("请使用自己在 my.telegram.org/apps 创建的参数。它们会通过 Android Keystore 支撑的加密偏好保存在此设备。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(id, { id = it }, Modifier.fillMaxWidth(), label = { Text("Telegram API ID") }, singleLine = true)
-        OutlinedTextField(hash, { hash = it }, Modifier.fillMaxWidth(), label = { Text("Telegram API Hash") }, singleLine = true)
+        Text(
+            if (vm.hasBundledApiConfig) {
+                "此版本含构建时默认 API。填写并保存自定义参数后，会优先使用当前设备加密保存的参数。"
+            } else {
+                "请使用自己在 my.telegram.org/apps 创建的参数。它们会通过 Android Keystore 支撑的加密偏好保存在此设备。"
+            },
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedTextField(
+            value = id,
+            onValueChange = { id = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Telegram API ID") },
+            singleLine = true,
+            visualTransformation = if (showId) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { showId = !showId }) {
+                    Icon(
+                        if (showId) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        if (showId) "隐藏 API ID" else "显示 API ID"
+                    )
+                }
+            }
+        )
+        OutlinedTextField(
+            value = hash,
+            onValueChange = { hash = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Telegram API Hash") },
+            singleLine = true,
+            visualTransformation = if (showHash) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { showHash = !showHash }) {
+                    Icon(
+                        if (showHash) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        if (showHash) "隐藏 API Hash" else "显示 API Hash"
+                    )
+                }
+            }
+        )
         Button(onClick = { vm.saveConfig(id, hash) }, modifier = Modifier.fillMaxWidth()) {
             Text("保存并初始化 TDLib")
         }

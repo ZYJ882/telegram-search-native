@@ -2,10 +2,11 @@
 
 本文件记录 Telegram Search Native 的版本演进。所有 APK 为调试签名构建，并在 GitHub Releases 中提供对应的 SHA-256 校验文件。
 
-> 仓库根目录保留当前可构建的 v1.4.0 源码；`archive/` 包含 v0.1.0 与 v0.2.0 的源码快照。未单独保留源码快照的历史版本以 APK、校验文件和版本说明进行归档。
+> 仓库根目录保留当前可构建的 v1.5.0 源码；`archive/` 包含 v0.1.0 与 v0.2.0 的源码快照。未单独保留源码快照的历史版本以 APK、校验文件和版本说明进行归档。
 
 | 版本 | APK | 主要更新 |
 |---|---|---|
+| v1.5.0-build-api-privacy | 有 | 可选构建时自定义 API 注入；设置页 API 凭据显示/隐藏。 |
 | v1.4.0-multi-page-slider | 有 | 收藏页与同步页增加右侧垂直滑块快速定位。 |
 | v1.3.1-time-list | 有 | 移除 # 与字母分组，搜索结果按时间顺序显示。 |
 | v1.3.0-multi-select | 有 | 搜索结果长按多选、全选、批量本机收藏与批量删除。 |
@@ -28,6 +29,10 @@
 | v0.5.1-message-refresh-copy | 有 | 消息权限刷新、文本选择与全文复制。 |
 | v0.6.0-scroll-pagination-fix | 有 | 长消息滚动与历史分页游标优化。 |
 | v0.7.0-continuous-sync | 有 | 持续历史同步与分页进度显示。 |
+
+## v1.5.0-build-api-privacy
+
+公开源码新增可选的 Telegram API 构建注入机制。克隆者可通过受 Git 忽略的 `local.properties`、环境变量或 Gradle 属性提供自己的 `TG_DEFAULT_API_ID` 和 `TG_DEFAULT_API_HASH`；构建默认值仅在设备中尚未保存手动参数时使用，现有“设置”页手动填写和 Android Keystore 加密存储仍保持不变。设置页的 API ID 与 API Hash 现在默认遮蔽，并可通过末尾小眼睛按钮临时显示或隐藏。
 
 ## v1.4.0-multi-page-slider
 

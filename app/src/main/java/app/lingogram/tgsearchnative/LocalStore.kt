@@ -20,7 +20,23 @@ data class IndexedChat(val chatId: Long, val chatName: String, val messages: Int
 class SecureSettings(context: Context) {
     private val masterAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
     private val prefs = EncryptedSharedPreferences.create("tg_native_secure", masterAlias, context, EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV, EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
-    fun apiConfig(): ApiConfig? { val id = prefs.getInt("api_id", 0); val hash = prefs.getString("api_hash", "") ?: ""; return if (id > 0 && hash.isNotBlank()) ApiConfig(id, hash) else null }
+
+    fun customApiConfig(): ApiConfig? {
+        val id = prefs.getInt("api_id", 0)
+        val hash = prefs.getString("api_hash", "") ?: ""
+        return if (id > 0 && hash.isNotBlank()) ApiConfig(id, hash) else null
+    }
+
+    fun bundledApiConfig(): ApiConfig? {
+        val id = BuildConfig.DEFAULT_TG_API_ID
+        val hash = BuildConfig.DEFAULT_TG_API_HASH.trim()
+        return if (id > 0 && hash.isNotBlank()) ApiConfig(id, hash) else null
+    }
+
+    fun apiConfig(): ApiConfig? = customApiConfig() ?: bundledApiConfig()
+
+    fun hasBundledApiConfig(): Boolean = bundledApiConfig() != null
+
     fun saveApiConfig(id: Int, hash: String) { prefs.edit().putInt("api_id", id).putString("api_hash", hash.trim()).apply() }
     fun dbKey(): ByteArray { val old = prefs.getString("db_key", null); if (old != null) return Base64.getDecoder().decode(old); val raw = ByteArray(32).also { SecureRandom().nextBytes(it) }; prefs.edit().putString("db_key", Base64.getEncoder().encodeToString(raw)).apply(); return raw }
     fun clear() { prefs.edit().clear().apply() }

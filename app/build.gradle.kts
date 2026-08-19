@@ -1,8 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+
+fun optionalBuildValue(key: String): String =
+    providers.environmentVariable(key).orNull?.trim().orEmpty()
+        .ifBlank { providers.gradleProperty(key).orNull?.trim().orEmpty() }
+        .ifBlank { localProperties.getProperty(key)?.trim().orEmpty() }
+
+fun String.escapeForBuildConfig(): String = replace("\\", "\\\\").replace("\"", "\\\"")
+
+val defaultTelegramApiId = optionalBuildValue("TG_DEFAULT_API_ID").toIntOrNull() ?: 0
+val defaultTelegramApiHash = optionalBuildValue("TG_DEFAULT_API_HASH")
 
 android {
     namespace = "app.lingogram.tgsearchnative"
@@ -11,8 +28,10 @@ android {
         applicationId = "app.lingogram.tgsearchnative"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "1.4.0-multi-page-slider"
+        versionCode = 23
+        versionName = "1.5.0-build-api-privacy"
+        buildConfigField("int", "DEFAULT_TG_API_ID", defaultTelegramApiId.toString())
+        buildConfigField("String", "DEFAULT_TG_API_HASH", "\"${defaultTelegramApiHash.escapeForBuildConfig()}\"")
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
