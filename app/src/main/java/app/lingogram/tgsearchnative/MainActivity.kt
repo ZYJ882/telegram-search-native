@@ -84,6 +84,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var indexedChats by mutableStateOf(emptyList<IndexedChat>())
     var notice by mutableStateOf<String?>(null)
     var config by mutableStateOf(secure.customApiConfig())
+    var apiSource by mutableStateOf(secure.apiConfigSource())
     val hasBundledApiConfig = secure.hasBundledApiConfig()
     var selected by mutableStateOf<LocalMessage?>(null)
     var searchListIndex by mutableIntStateOf(0)
@@ -118,8 +119,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         secure.saveApiConfig(id, hash)
         config = secure.customApiConfig()
+        apiSource = secure.apiConfigSource()
         gateway.restart()
-        notice = "参数已加密保存到当前设备"
+        notice = "已保存设备内自定义 API；连接时会优先使用它"
+    }
+
+    fun restoreBundledApi() {
+        if (!hasBundledApiConfig) {
+            notice = "此构建未提供默认 API，无法恢复"
+            return
+        }
+        secure.clearCustomApiConfig()
+        config = secure.customApiConfig()
+        apiSource = secure.apiConfigSource()
+        gateway.restart()
+        notice = "已清除设备内自定义 API；连接时将使用构建默认 API"
     }
 
     fun toggle(message: LocalMessage) {
@@ -851,6 +865,7 @@ fun Settings(vm: AppViewModel) {
     var hash by remember(vm.config) { mutableStateOf(vm.config?.apiHash ?: "") }
     var showId by rememberSaveable { mutableStateOf(false) }
     var showHash by rememberSaveable { mutableStateOf(false) }
+    var confirmRestoreBundled by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var showIndexManager by rememberSaveable { mutableStateOf(false) }
     var pendingChatDelete by remember { mutableStateOf<IndexedChat?>(null) }
@@ -864,10 +879,10 @@ fun Settings(vm: AppViewModel) {
     ) {
         Text("本地安全设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            if (vm.hasBundledApiConfig) {
-                "此版本含构建时默认 API。填写并保存自定义参数后，会优先使用当前设备加密保存的参数。"
-            } else {
-                "请使用自己在 my.telegram.org/apps 创建的参数。它们会通过 Android Keystore 支撑的加密偏好保存在此设备。"
+            when (vm.apiSource) {
+                ApiConfigSource.CUSTOM -> "当前连接会优先使用设备内自定义 API。Telegram 拒绝该参数时会显示具体提示，不会静默改用默认 API。"
+                ApiConfigSource.BUNDLED -> "当前未保存设备内自定义 API，连接会使用此构建注入的默认 API。"
+                ApiConfigSource.NONE -> "未找到可用 API。请填写自己在 my.telegram.org/apps 创建的参数；若构建者提供默认 API，未填写时会自动使用默认配置。"
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -905,6 +920,13 @@ fun Settings(vm: AppViewModel) {
         )
         Button(onClick = { vm.saveConfig(id, hash) }, modifier = Modifier.fillMaxWidth()) {
             Text("保存并初始化 TDLib")
+        }
+        if (vm.config != null && vm.hasBundledApiConfig) {
+            OutlinedButton(onClick = { confirmRestoreBundled = true }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Restore, null)
+                Spacer(Modifier.width(8.dp))
+                Text("清除自定义 API，恢复构建默认 API")
+            }
         }
         ElevatedCard {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -963,6 +985,22 @@ fun Settings(vm: AppViewModel) {
             }
         }
         OutlinedButton(onClick = vm::demo, modifier = Modifier.fillMaxWidth()) { Text("载入演示数据") }
+    }
+
+    if (confirmRestoreBundled) {
+        AlertDialog(
+            onDismissRequest = { confirmRestoreBundled = false },
+            icon = { Icon(Icons.Default.Restore, null) },
+            title = { Text("恢复构建默认 API？") },
+            text = { Text("这会仅清除当前设备中加密保存的自定义 API ID 与 API Hash。下次连接将使用此 APK 构建时注入的默认 API；本地索引、收藏和 Telegram 登录数据不会删除。") },
+            confirmButton = {
+                Button(onClick = {
+                    vm.restoreBundledApi()
+                    confirmRestoreBundled = false
+                }) { Text("确认恢复") }
+            },
+            dismissButton = { TextButton(onClick = { confirmRestoreBundled = false }) { Text("取消") } }
+        )
     }
 
     if (confirmClear) {

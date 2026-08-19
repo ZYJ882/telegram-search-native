@@ -13,6 +13,13 @@ import java.util.Base64
 import java.util.Locale
 
 data class ApiConfig(val apiId: Int, val apiHash: String)
+
+enum class ApiConfigSource(val label: String) {
+    CUSTOM("设备内自定义 API"),
+    BUNDLED("构建默认 API"),
+    NONE("未配置 API")
+}
+
 data class LocalMessage(val id: Long = 0, val remoteId: Long, val chatId: Long, val chatName: String, val sender: String, val date: String, val text: String, val saved: Boolean = false)
 data class LocalStats(val messages: Int, val chats: Int, val saved: Int)
 data class IndexedChat(val chatId: Long, val chatName: String, val messages: Int, val saved: Int)
@@ -33,11 +40,22 @@ class SecureSettings(context: Context) {
         return if (id > 0 && hash.isNotBlank()) ApiConfig(id, hash) else null
     }
 
-    fun apiConfig(): ApiConfig? = customApiConfig() ?: bundledApiConfig()
+    fun apiConfigSource(): ApiConfigSource = when {
+        customApiConfig() != null -> ApiConfigSource.CUSTOM
+        bundledApiConfig() != null -> ApiConfigSource.BUNDLED
+        else -> ApiConfigSource.NONE
+    }
+
+    fun apiConfig(): ApiConfig? = when (apiConfigSource()) {
+        ApiConfigSource.CUSTOM -> customApiConfig()
+        ApiConfigSource.BUNDLED -> bundledApiConfig()
+        ApiConfigSource.NONE -> null
+    }
 
     fun hasBundledApiConfig(): Boolean = bundledApiConfig() != null
 
     fun saveApiConfig(id: Int, hash: String) { prefs.edit().putInt("api_id", id).putString("api_hash", hash.trim()).apply() }
+    fun clearCustomApiConfig() { prefs.edit().remove("api_id").remove("api_hash").apply() }
     fun dbKey(): ByteArray { val old = prefs.getString("db_key", null); if (old != null) return Base64.getDecoder().decode(old); val raw = ByteArray(32).also { SecureRandom().nextBytes(it) }; prefs.edit().putString("db_key", Base64.getEncoder().encodeToString(raw)).apply(); return raw }
     fun clear() { prefs.edit().clear().apply() }
 }

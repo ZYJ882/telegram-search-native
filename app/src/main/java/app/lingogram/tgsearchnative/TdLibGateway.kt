@@ -58,6 +58,7 @@ class TdLibGateway(
         private set
 
     private var client: Client? = null
+    private var activeApiSource = ApiConfigSource.NONE
     private val main = Handler(Looper.getMainLooper())
     private val handler = Client.ResultHandler { obj -> main.post { handle(obj) } }
     private val syncQueue = ArrayDeque<RemoteChat>()
@@ -69,6 +70,7 @@ class TdLibGateway(
     private var cancelRequested = false
 
     fun start() {
+        activeApiSource = secure.apiConfigSource()
         val cfg = secure.apiConfig() ?: run { stage = AuthStage.NeedConfig; return }
         if (client != null) return
         try {
@@ -326,6 +328,11 @@ class TdLibGateway(
     }
 
     private fun handleError(error: TdApi.Error) {
+        if (stage is AuthStage.Starting && isApiCredentialError(error.message)) {
+            recoveryHint = null
+            stage = AuthStage.Failed(apiCredentialFailureMessage(error.message))
+            return
+        }
         when (error.message) {
             "PHONE_CODE_INVALID" -> {
                 stage = AuthStage.NeedCode
@@ -346,9 +353,21 @@ class TdLibGateway(
         }
     }
 
+    private fun isApiCredentialError(message: String): Boolean {
+        val code = message.uppercase()
+        return code.contains("API_ID") || code.contains("API_HASH") || code.contains("API KEY")
+    }
+
+    private fun apiCredentialFailureMessage(raw: String): String = when (activeApiSource) {
+        ApiConfigSource.CUSTOM -> "设备内自定义 API 无法使用（$raw）。请在设置页核对并重新保存自己的 API ID 与 API Hash；若此版本含构建默认 API，可清除自定义参数后恢复默认配置。"
+        ApiConfigSource.BUNDLED -> "构建默认 API 无法使用（$raw）。请联系此 APK 的构建者更新默认参数，或在设置页填写自己的 API ID 与 API Hash。"
+        ApiConfigSource.NONE -> "未找到可用 Telegram API 参数。请在设置页填写自己的 API ID 与 API Hash。"
+    }
+
     private fun onAuth(s: TdApi.AuthorizationState) {
         when (s) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> {
+                activeApiSource = secure.apiConfigSource()
                 val cfg = secure.apiConfig() ?: run { stage = AuthStage.NeedConfig; return }
                 val p = TdApi.SetTdlibParameters()
                 p.databaseDirectory = File(context.filesDir, "tdlib").absolutePath
@@ -360,7 +379,7 @@ class TdLibGateway(
                 p.apiHash = cfg.apiHash
                 p.systemLanguageCode = "zh"
                 p.deviceModel = "Android"
-                p.applicationVersion = "0.7.0-continuous-sync"
+                p.applicationVersion = BuildConfig.VERSION_NAME
                 client?.send(p, handler)
                 stage = AuthStage.Starting
             }

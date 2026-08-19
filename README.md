@@ -17,6 +17,7 @@
 | Telegram 操作 | 尝试转发到 Saved Messages，并在 Telegram 提供外链时跳转官方客户端。 |
 | 本地隐私 | 不含服务器、云同步或分析 SDK；手动填写的 API 配置通过 Android Keystore 支撑的加密偏好保存。 |
 | 源码自定义构建 | 可通过本地 `local.properties`、环境变量或 Gradle 属性注入自己的 API 参数；正式 Release 与自行构建路径相互独立。 |
+| API 优先级与反馈 | 设备内手动保存的 API 优先；未填写时才使用构建默认 API。Telegram 拒绝当前 API 时会明确说明来源与处理方式，不会静默回退。 |
 
 ## 快速开始
 
@@ -55,6 +56,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | 版本 | 核心更新 | 发布页 |
 |---|---|---|
+| v1.7.0 | 自定义 API 优先、构建默认 API 回退、无效参数来源提示与恢复默认入口。 | [Release v1.7.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.7.0-api-priority) |
 | v1.6.0 | 收藏页新增多关键词本地搜索、清除按钮和匹配失败提示。 | [Release v1.6.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.6.0-saved-search) |
 | v1.5.0 | 支持使用自己的 API 构建；设置页 API ID / Hash 默认遮蔽并可用小眼睛显示或隐藏。 | [Release v1.5.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.5.0-build-api-privacy) |
 | v1.4.0 | 收藏页与同步页增加右侧垂直滑块，可快速定位长列表。 | [Release v1.4.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.4.0-multi-page-slider) |

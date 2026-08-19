@@ -28,8 +28,8 @@ android {
         applicationId = "app.lingogram.tgsearchnative"
         minSdk = 26
         targetSdk = 35
-        versionCode = 24
-        versionName = "1.6.0-saved-search"
+        versionCode = 25
+        versionName = "1.7.0-api-priority"
         buildConfigField("int", "DEFAULT_TG_API_ID", defaultTelegramApiId.toString())
         buildConfigField("String", "DEFAULT_TG_API_HASH", "\"${defaultTelegramApiHash.escapeForBuildConfig()}\"")
     }
