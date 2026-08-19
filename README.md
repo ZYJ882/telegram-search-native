@@ -1,6 +1,8 @@
 # Telegram Search Native
 
 > 一个基于 **Kotlin + Jetpack Compose + TDLib** 的 Android 原生 Telegram 本地检索原型。用户在自己的手机完成 Telegram 登录，并自主选择会话同步；消息索引、API 配置和 TDLib 工作目录均保存在设备本地。
+>
+> **克隆源码后可使用自己的 Telegram API 参数构建 APK。** 可通过受 Git 忽略的 `local.properties`、环境变量或 Gradle 属性注入 `TG_DEFAULT_API_ID` 与 `TG_DEFAULT_API_HASH`；本项目不提供、不会公开任何其他人的 API 凭据。
 
 ## 主要能力
 
