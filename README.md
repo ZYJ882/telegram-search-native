@@ -4,6 +4,10 @@
 >
 > **克隆源码后可使用自己的 Telegram API 参数构建 APK。** 可通过受 Git 忽略的 `local.properties`、环境变量或 Gradle 属性注入 `TG_DEFAULT_API_ID` 与 `TG_DEFAULT_API_HASH`；本项目不提供、不会公开任何其他人的 API 凭据。
 
+## 项目来源
+
+本项目参考 [telegram-search](https://github.com/groupultra/telegram-search) 的检索思路开发。原项目提供的是网页/服务端检索方案，并没有面向 Android 的原生应用；本项目据此实现了 Kotlin + Jetpack Compose + TDLib 的原生 Android 版本，将登录、会话同步、消息索引和离线搜索放在用户自己的设备上完成。
+
 ## 主要能力
 
 | 能力 | 当前实现 |
@@ -54,35 +58,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## 版本与下载
 
-| 版本 | 核心更新 | 发布页 |
-|---|---|---|
-| v1.7.0 | 自定义 API 优先、构建默认 API 回退、无效参数来源提示与恢复默认入口。 | [Release v1.7.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.7.0-api-priority) |
-| v1.6.0 | 收藏页新增多关键词本地搜索、清除按钮和匹配失败提示。 | [Release v1.6.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.6.0-saved-search) |
-| v1.5.0 | 支持使用自己的 API 构建；设置页 API ID / Hash 默认遮蔽并可用小眼睛显示或隐藏。 | [Release v1.5.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.5.0-build-api-privacy) |
-| v1.4.0 | 收藏页与同步页增加右侧垂直滑块，可快速定位长列表。 | [Release v1.4.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.4.0-multi-page-slider) |
-| v1.3.1 | 移除 # 与字母分组，搜索结果按时间顺序显示。 | [Release v1.3.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.3.1-time-list) |
-| v1.3.0 | 搜索结果长按多选、全选、批量本机收藏与批量删除。 | [Release v1.3.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.3.0-multi-select) |
-| v1.2.0 | 搜索索引管理、全部索引删除与按会话删除。 | [Release v1.2.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.2.0-index-manager) |
-| v1.1.0 | 右侧垂直滑块、宽触摸热区、进度浮层与快速定位。 | [Release v1.1.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.1.0-search-slider) |
-| v1.0.1 | 覆盖层连续触摸追踪，修复右侧字母区滑动。 | [Release v1.0.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.0.1-pointer-overlay) |
-| v1.0.0 | 紧凑抽屉式字母索引、长按滑动浮层和搜索列表滚动优化。 | [Release v1.0.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v1.0.0-drawer-index) |
-| v0.9.1 | 修复右侧字母索引条上下拖动跳转。 | [Release v0.9.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.1-index-drag-fix) |
-| v0.9.0 | 搜索结果右侧 #–Z 索引、会话名称分组和上下拖动快速定位。 | [Release v0.9.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.9.0-search-index-rail) |
-| v0.8.1 | 多关键词全部包含检索，支持空格和常见分隔符。 | [Release v0.8.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.8.1-multi-keyword-search) |
-| v0.8.0 | 本机收藏夹、单条本地删除与本地数据清除。 | [Release v0.8.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.8.0-local-library) |
-| v0.7.0 | 持续历史同步、重复页不中止、页数诊断和手动停止。 | [Release v0.7.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.7.0) |
-| v0.6.0 | 长消息详情滚动、稳定历史游标与重复页保护。 | [Release v0.6.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.6.0-scroll-pagination-fix) |
-| v0.5.1 | 消息权限刷新、文本选择和全文复制。 | [Release v0.5.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.5.1-message-refresh-copy) |
-| v0.5.0 | Saved Messages 转发、Telegram 跳转和导航体验。 | [Release v0.5.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.5.0-message-actions) |
-| v0.4.0 | 会话名称搜索与已选会话置顶。 | [Release v0.4.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.4.0-chat-picker) |
-| v0.3.2 | 同步稳定性、媒体配文索引和启动图标。 | [Release v0.3.2](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.3.2-sync-icon) |
-| v0.3.1 | 启动图标设计迭代。 | [Release v0.3.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.3.1-history-icon) |
-| v0.3.0 | 分页全量历史同步。 | [Release v0.3.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.3.0-full-history) |
-| v0.2.1 | 验证码错误恢复和认证状态提示。 | [Release v0.2.1](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.2.1-code-retry) |
-| v0.2.0 | TDLib 登录、会话同步与本地搜索。 | [Release v0.2.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.2.0-tdlib) |
-| v0.1.0 | JSON/JSONL 本地导入与离线检索。 | [Release v0.1.0](https://github.com/ZYJ882/telegram-search-native/releases/tag/v0.1.0-local-import) |
-
-更详细的变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+请前往 [GitHub Releases](https://github.com/ZYJ882/telegram-search-native/releases) 查看各版本。每个正式版本的 Release 页面均单独记录该版本的详细更新内容，并提供对应的 APK 与 SHA-256 校验文件；README 不重复列出逐版本更新说明。
 
 ## 隐私与安全
 
