@@ -75,6 +75,29 @@ class ArchiveStore(context: Context) : SQLiteOpenHelper(context, "tg_native_inde
         }
         return readableDatabase.query("messages", null, where.joinToString(" AND "), args.toTypedArray(), null, null, "date DESC").use { rows(it) }
     }
+    fun allMessages(): List<LocalMessage> = readableDatabase.query("messages", null, null, null, null, null, "id ASC").use { rows(it) }
+    fun replaceAll(items: List<LocalMessage>) {
+        writableDatabase.beginTransaction()
+        try {
+            writableDatabase.delete("messages", null, null)
+            items.forEach { message ->
+                val values = ContentValues().apply {
+                    put("remote_id", message.remoteId)
+                    put("chat_id", message.chatId)
+                    put("chat_name", message.chatName)
+                    put("sender", message.sender)
+                    put("date", message.date)
+                    put("text", message.text)
+                    put("normalized", message.text.lowercase(Locale.ROOT))
+                    put("saved", if (message.saved) 1 else 0)
+                }
+                writableDatabase.insertOrThrow("messages", null, values)
+            }
+            writableDatabase.setTransactionSuccessful()
+        } finally {
+            writableDatabase.endTransaction()
+        }
+    }
     fun toggle(id:Long) { val before=readableDatabase.rawQuery("SELECT saved FROM messages WHERE id=?",arrayOf(id.toString())).use{it.moveToFirst()&&it.getInt(0)==1}; writableDatabase.execSQL("UPDATE messages SET saved=? WHERE id=?",arrayOf(if(before)0 else 1,id)) }
     fun stats():LocalStats=readableDatabase.rawQuery("SELECT count(*),count(DISTINCT chat_id),sum(saved) FROM messages",null).use{it.moveToFirst();LocalStats(it.getInt(0),it.getInt(1),if(it.isNull(2))0 else it.getInt(2))}
     fun indexedChats(): List<IndexedChat> = readableDatabase.rawQuery("SELECT chat_id, chat_name, count(*), sum(saved) FROM messages GROUP BY chat_id, chat_name ORDER BY chat_name COLLATE NOCASE", null).use { cursor ->

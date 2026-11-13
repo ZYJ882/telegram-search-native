@@ -3,10 +3,13 @@ package app.lingogram.tgsearchnative
 import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -199,6 +202,42 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
         selected = null
         notice = "已删除 $deleted 条本机消息、收藏和搜索索引"
+    }
+
+    fun exportBackup(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().writeBackup(uri, store.allMessages(), secure.customApiConfig())
+                }
+                notice = "完整本地备份已导出（${stats.messages} 条消息）"
+            } catch (error: Exception) {
+                notice = "备份导出失败：${error.message ?: "无法写入文件"}"
+            }
+        }
+    }
+
+    fun importBackup(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val payload = withContext(Dispatchers.IO) {
+                    getApplication<Application>().readBackup(uri)
+                }
+                withContext(Dispatchers.IO) {
+                    store.replaceAll(payload.messages)
+                    payload.customApi?.let { secure.saveApiConfig(it.apiId, it.apiHash) }
+                        ?: secure.clearCustomApiConfig()
+                }
+                config = secure.customApiConfig()
+                apiSource = secure.apiConfigSource()
+                gateway.restart()
+                refresh()
+                selected = null
+                notice = "已导入完整本地备份（${payload.messages.size} 条消息）"
+            } catch (error: Exception) {
+                notice = "备份导入失败：${error.message ?: "文件格式无效"}"
+            }
+        }
     }
 }
 
@@ -869,6 +908,13 @@ fun Settings(vm: AppViewModel) {
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var showIndexManager by rememberSaveable { mutableStateOf(false) }
     var pendingChatDelete by remember { mutableStateOf<IndexedChat?>(null) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        uri?.let(vm::exportBackup)
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        pendingImportUri = uri
+    }
 
     Column(
         Modifier
@@ -926,6 +972,32 @@ fun Settings(vm: AppViewModel) {
                 Icon(Icons.Default.Restore, null)
                 Spacer(Modifier.width(8.dp))
                 Text("清除自定义 API，恢复构建默认 API")
+            }
+        }
+        ElevatedCard {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("完整数据备份", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "导出本机全部消息索引、本机收藏和设备内自定义 API。Telegram 登录会话不会导出，导入后仍需按 TDLib 状态重新连接。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = { exportLauncher.launch("telegram-search-native-backup.zip") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Upload, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("导出完整备份")
+                }
+                OutlinedButton(
+                    onClick = { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Download, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("导入完整备份")
+                }
             }
         }
         ElevatedCard {
@@ -1038,6 +1110,25 @@ fun Settings(vm: AppViewModel) {
                 ) { Text("确认删除") }
             },
             dismissButton = { TextButton(onClick = { pendingChatDelete = null }) { Text("取消") } }
+        )
+    }
+
+    pendingImportUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            icon = { Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("导入并覆盖本地数据？") },
+            text = { Text("导入会删除当前设备中的全部消息索引和本机收藏，并替换为备份中的数据；备份中没有自定义 API 时，也会清除当前设备内的自定义 API。Telegram 账号中的聊天记录不会受到影响。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.importBackup(uri)
+                        pendingImportUri = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("确认导入") }
+            },
+            dismissButton = { TextButton(onClick = { pendingImportUri = null }) { Text("取消") } }
         )
     }
 }

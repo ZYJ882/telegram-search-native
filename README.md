@@ -17,6 +17,7 @@
 | 离线本地检索 | 支持单词和多关键词包含检索；结果按时间顺序显示，支持右侧滑块、多选、全选、批量本机收藏和批量删除索引。 |
 | 消息详情 | 长文本滚动、长按选择文字、一键复制全文、单条本地删除。 |
 | 本机收藏夹 | 搜索结果和消息详情可书签收藏；“收藏”页集中查看和移除收藏，支持与搜索页一致的多关键词检索及右侧滑块快速定位，不写入 Telegram 账号。 |
+| 完整数据备份 | 设置页可将全部消息索引、本机收藏和设备内自定义 API 导出为 ZIP，也可在确认覆盖后导入恢复；Telegram 登录会话和 Android Keystore 不会导出。 |
 | 本地索引管理 | 设置页支持删除全部搜索索引或按会话删除索引；不影响 Telegram 中的原始消息。 |
 | Telegram 操作 | 尝试转发到 Saved Messages，并在 Telegram 提供外链时跳转官方客户端。 |
 | 本地隐私 | 不含服务器、云同步或分析 SDK；手动填写的 API 配置通过 Android Keystore 支撑的加密偏好保存。 |
@@ -36,6 +37,10 @@
 ### 3. 连接与同步
 
 在应用中依次打开“设置 → 连接 → 同步 → 搜索”。连接阶段的验证码和两步验证密码仅应在手机内输入。同步页支持按会话名称搜索，勾选后会话会自动置顶；只需点击一次同步。同步持续到 Telegram 返回空页或你主动点击停止。
+
+### 完整数据备份
+
+在“设置 → 完整数据备份”中可以导出 ZIP 备份，内容包括全部本机消息索引、收藏状态和设备内自定义 API 配置。导入会覆盖当前本地索引、收藏和自定义 API，应用会在操作前再次确认。Telegram 登录会话、Android Keystore 和 TDLib 工作目录不会写入备份；导入后如需连接 Telegram，按当前设备的授权状态继续操作即可。
 
 ## 从源码构建
 
@@ -58,7 +63,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## 版本与下载
 
-请前往 [GitHub Releases](https://github.com/ZYJ882/telegram-search-native/releases) 查看各版本。每个正式版本的 Release 页面均单独记录该版本的详细更新内容，并提供对应的 APK 与 SHA-256 校验文件；README 不重复列出逐版本更新说明。
+请前往 [GitHub Releases](https://github.com/ZYJ882/telegram-search-native/releases) 查看各版本。每个正式版本的 Release 页面均单独记录该版本的详细更新内容，并提供对应的 APK 与 SHA-256 校验文件；README 不重复列出逐版本更新说明。仓库不再通过 GitHub Actions 自动创建公开 Release，正式版本由维护者人工确认后发布。
 
 ## 隐私与安全
 
@@ -79,4 +84,3 @@ docs/releases/          每个版本的中文说明
 gradle/                 Gradle Wrapper
 CHANGELOG.md            版本历史
 ```
-
