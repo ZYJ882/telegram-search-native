@@ -75,9 +75,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 refresh()
                 afterInsert(inserted)
                 if (inserted > 0) notice = "本页新增 $inserted 条本地索引"
+                if (SyncForegroundService.running) {
+                    SyncForegroundService.update(app, "同步进行中：本页新增 $inserted 条本地索引")
+                }
             }
         },
-        { message -> notice = message }
+        { message ->
+            notice = message
+            if (SyncForegroundService.running) SyncForegroundService.update(app, message)
+        },
+        { message ->
+            if (SyncForegroundService.running) {
+                SyncForegroundService.update(app, message, completed = true)
+                app.stopService(android.content.Intent(app, SyncForegroundService::class.java))
+            }
+        }
     )
 
     var tab by mutableStateOf(Tab.SEARCH)
@@ -212,12 +224,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             notice = "请先连接 Telegram，并至少选择一个会话"
             return
         }
-        gateway.closeForBackgroundSync()
         val intent = android.content.Intent(getApplication<Application>(), SyncForegroundService::class.java)
             .setAction(SyncForegroundService.ACTION_START)
-            .putExtra(SyncForegroundService.EXTRA_CHAT_IDS, ids.toLongArray())
         androidx.core.content.ContextCompat.startForegroundService(getApplication(), intent)
-        notice = "已开始后台同步，可切换到其他应用；通知栏会持续显示进度"
+        gateway.syncSelected()
+        notice = "已开始同步，可切换到其他应用；通知栏会持续显示进度"
     }
 
     fun exportBackup(uri: Uri) {
