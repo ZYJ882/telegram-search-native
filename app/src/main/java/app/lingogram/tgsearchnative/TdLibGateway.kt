@@ -30,7 +30,8 @@ class TdLibGateway(
     private val context: Context,
     private val secure: SecureSettings,
     private val onIndex: (List<LocalMessage>, (Int) -> Unit) -> Unit,
-    private val onActionNotice: (String) -> Unit
+    private val onActionNotice: (String) -> Unit,
+    private val onSyncFinished: (String) -> Unit = {}
 ) {
     companion object { private const val HISTORY_PAGE_SIZE = 100; private const val HISTORY_RETRY_DELAY_MS = 900L }
 
@@ -68,6 +69,9 @@ class TdLibGateway(
     private var repeatedHistoryPages = 0
     private val pendingTitleLoads = mutableSetOf<Long>()
     private var cancelRequested = false
+    private var restartPending = false
+    private var requestedChatIds: Set<Long>? = null
+    private var requestedBackgroundSync = false
 
     fun start() {
         activeApiSource = secure.apiConfigSource()
@@ -84,10 +88,55 @@ class TdLibGateway(
     fun restart() {
         cancelSync("已停止同步，正在重新初始化登录")
         recoveryHint = null
+        chats = emptyList()
+        restartPending = true
+        val oldClient = client
+        client = null
+        if (oldClient == null) {
+            restartPending = false
+            start()
+        } else {
+            oldClient.send(TdApi.Close(), Client.ResultHandler {
+                main.post {
+                    if (restartPending) {
+                        restartPending = false
+                        start()
+                    }
+                }
+            })
+            main.postDelayed({
+                if (restartPending) {
+                    restartPending = false
+                    start()
+                }
+            }, 500L)
+        }
+    }
+
+    fun reenterPhoneNumber() {
+        recoveryHint = null
+        val current = client
+        if (current == null) {
+            stage = AuthStage.NeedPhone
+            return
+        }
+        current.send(TdApi.LogOut(), Client.ResultHandler { result ->
+            main.post {
+                if (result is TdApi.Error) {
+                    restart()
+                } else {
+                    chats = emptyList()
+                    stage = AuthStage.NeedPhone
+                }
+            }
+        })
+    }
+
+    fun closeForBackgroundSync() {
         client?.send(TdApi.Close(), handler)
         client = null
         chats = emptyList()
-        start()
+        stage = AuthStage.Starting
     }
 
     fun sendPhone(value: String) {
@@ -218,6 +267,16 @@ class TdLibGateway(
         syncNextChat()
     }
 
+    fun syncSelectedChatIds(ids: Collection<Long>) {
+        requestedChatIds = ids.toSet()
+        requestedBackgroundSync = true
+        if (requestedChatIds.orEmpty().all { wanted -> chats.any { it.id == wanted } }) {
+            chats = chats.map { if (it.id in requestedChatIds.orEmpty()) it.copy(selected = true) else it }
+            syncSelected()
+            requestedBackgroundSync = false
+        }
+    }
+
     fun cancelSync(message: String = "已请求取消同步") {
         if (!syncInProgress) return
         cancelRequested = true
@@ -309,6 +368,7 @@ class TdLibGateway(
         syncCurrentChat = null
         syncQueue.clear()
         syncNote = message
+        onSyncFinished(message)
     }
 
     fun logout() {
@@ -406,9 +466,14 @@ class TdLibGateway(
         }
         val safeTitle = suppliedTitle.ifBlank { old?.title?.takeIf { it.isNotBlank() } ?: "会话 $id（正在载入名称）" }
         chats = if (old == null) {
-            (chats + RemoteChat(id, safeTitle)).sortedBy { it.title }
+            (chats + RemoteChat(id, safeTitle, requestedChatIds?.contains(id) == true)).sortedBy { it.title }
         } else {
             chats.map { if (it.id == id) it.copy(title = safeTitle) else it }
+        }
+        if (requestedBackgroundSync && requestedChatIds.orEmpty().all { wanted -> chats.any { it.id == wanted } }) {
+            chats = chats.map { if (it.id in requestedChatIds.orEmpty()) it.copy(selected = true) else it }
+            requestedBackgroundSync = false
+            syncSelected()
         }
     }
 

@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -204,6 +206,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         notice = "已删除 $deleted 条本机消息、收藏和搜索索引"
     }
 
+    fun startBackgroundSync() {
+        val ids = gateway.chats.filter { it.selected }.map { it.id }
+        if (ids.isEmpty() || !gateway.syncInProgress) {
+            notice = "请先开始同步并至少选择一个会话"
+            return
+        }
+        gateway.closeForBackgroundSync()
+        val intent = android.content.Intent(getApplication<Application>(), SyncForegroundService::class.java)
+            .setAction(SyncForegroundService.ACTION_START)
+            .putExtra(SyncForegroundService.EXTRA_CHAT_IDS, ids.toLongArray())
+        androidx.core.content.ContextCompat.startForegroundService(getApplication(), intent)
+        notice = "已切换到后台同步，可切换到其他应用；完成后会发送通知"
+    }
+
     fun exportBackup(uri: Uri) {
         viewModelScope.launch {
             try {
@@ -244,6 +260,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
         setContent { App() }
     }
 }
@@ -744,6 +765,9 @@ fun Connect(vm: AppViewModel) {
                         TextButton(onClick = vm.gateway::restart, modifier = Modifier.fillMaxWidth()) {
                             Text("验证码无效或过期？重新开始登录")
                         }
+                        TextButton(onClick = vm.gateway::reenterPhoneNumber, modifier = Modifier.fillMaxWidth()) {
+                            Text("手机号填错了？重新输入")
+                        }
                     }
 
                     AuthStage.NeedPassword -> {
@@ -858,6 +882,14 @@ fun Sync(vm: AppViewModel) {
                     )
                     OutlinedButton(onClick = vm.gateway::cancelSync, modifier = Modifier.fillMaxWidth()) {
                         Text("完成当前页后取消同步")
+                    }
+                    Button(
+                        onClick = vm::startBackgroundSync,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Notifications, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("切换到后台同步，完成后通知我")
                     }
                 }
             }
