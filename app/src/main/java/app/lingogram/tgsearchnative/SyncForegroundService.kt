@@ -7,9 +7,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 
 class SyncForegroundService : Service() {
+    private var wakeLock: PowerManager.WakeLock? = null
     companion object {
         const val ACTION_START = "app.lingogram.tgsearchnative.START_SYNC"
         const val ACTION_STOP = "app.lingogram.tgsearchnative.STOP_SYNC"
@@ -53,7 +55,23 @@ class SyncForegroundService : Service() {
             }
             ACTION_START -> {
                 running = true
-                startForeground(NOTIFICATION_ID, buildNotification(this, "正在后台保活同步…", false))
+                val manager = getSystemService(PowerManager::class.java)
+                wakeLock = manager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "TelegramSearchNative:Sync"
+                ).apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    startForeground(
+                        NOTIFICATION_ID,
+                        buildNotification(this, "正在同步，锁屏后继续运行…", false),
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    )
+                } else {
+                    startForeground(NOTIFICATION_ID, buildNotification(this, "正在同步，锁屏后继续运行…", false))
+                }
             }
         }
         return START_NOT_STICKY
@@ -68,6 +86,8 @@ class SyncForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
         running = false
         super.onDestroy()
     }
