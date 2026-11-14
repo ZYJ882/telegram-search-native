@@ -381,6 +381,7 @@ class TdLibGateway(
     private fun handle(obj: TdApi.Object) {
         when (obj) {
             is TdApi.UpdateAuthorizationState -> onAuth(obj.authorizationState)
+            is TdApi.Chat -> upsert(obj.id, obj.title)
             is TdApi.UpdateNewChat -> upsert(obj.chat.id, obj.chat.title)
             is TdApi.UpdateChatTitle -> upsert(obj.chatId, obj.title)
             is TdApi.Error -> handleError(obj)
@@ -449,6 +450,9 @@ class TdLibGateway(
             is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> stage = AuthStage.NeedOtherDevice
             is TdApi.AuthorizationStateReady -> {
                 stage = AuthStage.Ready
+                requestedChatIds.orEmpty().forEach { id ->
+                    client?.send(TdApi.GetChat(id), handler)
+                }
                 client?.send(TdApi.LoadChats(TdApi.ChatListMain(), 100), handler)
             }
             else -> stage = AuthStage.Failed("未处理的授权状态：${s.javaClass.simpleName}")
