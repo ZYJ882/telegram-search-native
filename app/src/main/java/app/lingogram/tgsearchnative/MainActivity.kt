@@ -48,6 +48,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -61,6 +63,13 @@ enum class Tab(val label: String) {
     CONNECT("连接"),
     SETTINGS("设置")
 }
+
+private data class RefreshSnapshot(
+    val results: List<LocalMessage>,
+    val saved: List<LocalMessage>,
+    val stats: LocalStats,
+    val indexedChats: List<IndexedChat>
+)
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val secure = SecureSettings(app)
@@ -106,6 +115,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var selected by mutableStateOf<LocalMessage?>(null)
     var searchListIndex by mutableIntStateOf(0)
     var searchListOffset by mutableIntStateOf(0)
+    private var refreshJob: Job? = null
 
     init {
         refresh()
@@ -113,14 +123,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refresh() {
-        results = store.search(query)
-        refreshSaved()
-        stats = store.stats()
-        indexedChats = store.indexedChats()
+        refreshJob?.cancel()
+        val searchText = query
+        val savedText = savedQuery
+        refreshJob = viewModelScope.launch {
+            val snapshot = withContext(Dispatchers.IO) {
+                RefreshSnapshot(
+                    results = store.search(searchText),
+                    saved = store.saved(savedText),
+                    stats = store.stats(),
+                    indexedChats = store.indexedChats()
+                )
+            }
+            results = snapshot.results
+            saved = snapshot.saved
+            stats = snapshot.stats
+            indexedChats = snapshot.indexedChats
+        }
     }
 
     fun refreshSaved() {
-        saved = store.saved(savedQuery)
+        val savedText = savedQuery
+        viewModelScope.launch {
+            saved = withContext(Dispatchers.IO) { store.saved(savedText) }
+        }
     }
 
     fun updateSavedQuery(value: String) {
@@ -154,7 +180,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun toggle(message: LocalMessage) {
-        store.toggle(message.id)
+        viewModelScope.launch(Dispatchers.IO) { store.toggle(message.id) }
         refresh()
         selected = results.firstOrNull { it.id == message.id }
             ?: saved.firstOrNull { it.id == message.id }
@@ -179,23 +205,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteLocal(message: LocalMessage) {
-        store.deleteMessage(message.id)
+        viewModelScope.launch(Dispatchers.IO) { store.deleteMessage(message.id) }
         refresh()
         if (selected?.id == message.id) closeDetail()
         notice = "已从本机索引删除该消息"
     }
 
     fun setSaved(ids: Collection<Long>, saved: Boolean) {
-        val changed = store.setSaved(ids, saved)
-        refresh()
-        notice = if (saved) "已将 $changed 条消息加入本机收藏" else "已将 $changed 条消息移出本机收藏"
+        viewModelScope.launch(Dispatchers.IO) {
+            val changed = store.setSaved(ids, saved)
+            withContext(Dispatchers.Main) {
+                refresh()
+                notice = if (saved) "已将 $changed 条消息加入本机收藏" else "已将 $changed 条消息移出本机收藏"
+            }
+        }
     }
 
     fun deleteLocalMessages(ids: Collection<Long>) {
-        val deleted = store.deleteMessages(ids)
-        refresh()
-        if (selected?.id in ids) closeDetail()
-        notice = "已从本机索引删除 $deleted 条消息"
+        viewModelScope.launch(Dispatchers.IO) {
+            val deleted = store.deleteMessages(ids)
+            withContext(Dispatchers.Main) {
+                refresh()
+                if (selected?.id in ids) closeDetail()
+                notice = "已从本机索引删除 $deleted 条消息"
+            }
+        }
     }
 
     fun demo() {
@@ -372,6 +406,7 @@ fun Search(vm: AppViewModel) {
     val allResultIds = remember(vm.results) { vm.results.map { it.id }.toSet() }
 
     LaunchedEffect(vm.query) {
+        delay(180)
         vm.refresh()
         selectionMode = false
         selectedIds = emptySet()
